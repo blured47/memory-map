@@ -1,0 +1,42 @@
+<!doctype html>
+<html lang="ko">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <title>Memory Map</title>
+  <link rel="stylesheet" href="style.css">
+</head>
+<body>
+  <header><h1>Memory Map</h1><p>사진·메모 기반 인간관계 기억지도</p></header>
+  <main>
+    <section class="panel">
+      <h2>사람</h2>
+      <form id="person-form">
+        <input name="name" placeholder="이름" required>
+        <input name="relation" placeholder="관계 (예: 대학 동기)">
+        <input name="contact_cycle_days" type="number" min="1" placeholder="연락 주기(일)">
+        <button>추가</button>
+      </form>
+      <ul id="person-list"></ul>
+    </section>
+
+    <section class="panel">
+      <h2>만남 기록</h2>
+      <form id="meeting-form">
+        <input name="met_at" type="datetime-local" required>
+        <input name="place_name" placeholder="장소 (비워두면 미지정)">
+        <fieldset id="people-picker"><legend>함께한 사람</legend></fieldset>
+        <textarea name="memo" rows="3" placeholder="자유 메모"></textarea>
+        <button>기록</button>
+      </form>
+      <ul id="meeting-list"></ul>
+    </section>
+
+    <section class="panel wide">
+      <h2>기억지도</h2>
+      <div id="map" class="map-placeholder">2단계에서 카카오맵 연동 예정</div>
+    </section>
+  </main>
+  <script src="app.js"></script>
+</body>
+</html>
