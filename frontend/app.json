@@ -1,0 +1,14 @@
+{
+  "expo": {
+    "name": "MemoryApp",
+    "slug": "memory-app",
+    "version": "1.0.0",
+    "orientation": "portrait",
+    "plugins": [
+      ["expo-build-properties", { "android": { "usesCleartextTraffic": true } }]
+    ],
+    "android": {
+      "package": "com.example.memorymap"
+    }
+  }
+}
