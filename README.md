@@ -50,6 +50,49 @@ docker compose up --build
 cd backend && pytest
 ```
 
+## API
+
+서버 실행 후 http://localhost:8000/docs 에서 전체 API 설명을 보고 직접 요청을 보내 테스트할 수 있습니다.
+
+### 사람
+
+| 메서드 | 주소 | 설명 |
+|---|---|---|
+| GET | `/api/persons` | 사람 목록 (이름순) |
+| POST | `/api/persons` | 사람 추가 |
+| GET | `/api/persons/{id}` | 사람 상세 (만남 횟수 `meeting_count`, 마지막 만남 `last_met_at` 포함) |
+| PATCH | `/api/persons/{id}` | 사람 정보 수정 (보낸 항목만 변경) |
+| DELETE | `/api/persons/{id}` | 사람 삭제 |
+
+```json
+// POST /api/persons
+{ "name": "김철수", "relation": "대학 동기", "birthday": "2003-03-14", "contact_cycle_days": 30, "note": null }
+```
+
+### 만남 기록
+
+| 메서드 | 주소 | 설명 |
+|---|---|---|
+| GET | `/api/meetings` | 만남 목록 (최신순), `?person_id=1`로 특정 사람만 |
+| POST | `/api/meetings` | 만남 추가 (`person_ids`에 함께한 사람 1명 이상) |
+| GET | `/api/meetings/{id}` | 만남 상세 |
+| PATCH | `/api/meetings/{id}` | 만남 수정 (보낸 항목만 변경) |
+| DELETE | `/api/meetings/{id}` | 만남 삭제 |
+
+```json
+// POST /api/meetings
+{
+  "met_at": "2026-10-20T18:30:00",
+  "place_name": "숭실대 정문",
+  "latitude": 37.4963,
+  "longitude": 126.9575,
+  "memo": "요즘 클라이밍에 빠졌다고 함",
+  "person_ids": [1, 2]
+}
+```
+
+`place_name`이 `null`이면 장소 미지정, 위도·경도는 없으면 생략할 수 있습니다.
+
 ## 프로젝트 구조
 
 ```
