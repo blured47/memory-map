@@ -10,15 +10,27 @@ Memory Map 앱과 Android APK 빌드용 Docker 환경.
 2. 플랫폼 > Web > 사이트 도메인에 `http://localhost` 등록
 3. 키를 `EXPO_PUBLIC_KAKAO_JS_KEY` 환경변수로 전달 (`.env.example` 참고)
 
+## 연락 알림
+
+지도 오른쪽 위 **연락할 사람** 버튼에 연락이 필요한 사람 수가 표시되고, 누르면 목록이 열립니다.
+백엔드의 `GET /api/reminders?ratio=` 를 사용하며, 기준 비율(1.2 / 1.5 / 2 / 3배)을 바꿀 수 있습니다.
+
+- 백엔드 주소를 `EXPO_PUBLIC_API_URL` 로 전달합니다. 폰에서는 `localhost` 가 폰 자신을 가리키므로 **PC의 LAN IP** 를 써야 합니다. (예: `http://192.168.0.10:8000`)
+- 폰과 PC가 같은 네트워크에 있어야 하고, Windows 방화벽에서 8000 포트가 허용돼야 합니다.
+
 ## APK 빌드
+
+`.env` 에 위 두 값을 적은 뒤 (`.env.example` 참고):
 
 ```bash
 docker build -t rn-builder .
-docker run --rm -e EXPO_PUBLIC_KAKAO_JS_KEY=<JS키> -v "$(pwd)/output:/output" rn-builder
+docker run --rm --env-file .env -v "$(pwd)/output:/output" -v rn-gradle:/root/.gradle rn-builder
 ```
 
-PowerShell: `docker run --rm -e EXPO_PUBLIC_KAKAO_JS_KEY=<JS키> -v "${PWD}/output:/output" -v rn-gradle:/root/.gradle rn-builder`
+PowerShell: `docker run --rm --env-file .env -v "${PWD}/output:/output" -v rn-gradle:/root/.gradle rn-builder`
 Git Bash(Windows): 앞에 `MSYS_NO_PATHCONV=1` 을 붙이고 `$(pwd -W)/output` 사용
+
+> `EXPO_PUBLIC_*` 값은 빌드할 때 앱에 들어갑니다. 값을 바꾸면 APK를 다시 빌드해야 합니다.
 
 결과물: `output/app-release.apk` (debug 키로 서명됨 — 테스트용)
 

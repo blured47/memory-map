@@ -1,6 +1,5 @@
 import { useEffect, useState } from 'react';
 import { StyleSheet, Text, View } from 'react-native';
-import { StatusBar } from 'expo-status-bar';
 import { WebView } from 'react-native-webview';
 
 const KAKAO_JS_KEY = process.env.EXPO_PUBLIC_KAKAO_JS_KEY;
@@ -40,7 +39,7 @@ const mapHtml = (key) => `<!DOCTYPE html>
 </body>
 </html>`;
 
-export default function App() {
+export default function KakaoMap() {
   const [error, setError] = useState(null);
   const [loaded, setLoaded] = useState(false);
 
@@ -63,7 +62,7 @@ export default function App() {
   return (
     <View style={styles.container}>
       <WebView
-        style={styles.map}
+        style={styles.container}
         originWhitelist={['*']}
         source={{ html: mapHtml(KAKAO_JS_KEY), baseUrl: BASE_URL }}
         javaScriptEnabled
@@ -81,14 +80,12 @@ export default function App() {
           <Text style={styles.errorText}>{error}</Text>
         </View>
       )}
-      <StatusBar style="dark" />
     </View>
   );
 }
 
 const styles = StyleSheet.create({
   container: { flex: 1 },
-  map: { flex: 1 },
   center: { flex: 1, alignItems: 'center', justifyContent: 'center', padding: 24 },
   message: { fontSize: 16, textAlign: 'center' },
   errorBox: { position: 'absolute', left: 12, right: 12, bottom: 32, backgroundColor: '#b91c1c', padding: 12, borderRadius: 8 },
