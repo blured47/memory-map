@@ -31,11 +31,11 @@ class PersonOut(PersonBase):
     created_at: datetime
     last_met_at: datetime | None = None
     meeting_count: int = 0
-    # 연락 주기 알림·관계 온도 (app/contact.py 참고)
+    # 맞춤형 연락 알림 (app/contact.py 참고)
     days_since_last_met: int | None = None
-    cycle_days: int | None = None
+    usual_cycle_days: float | None = None
+    cycle_source: Literal["average", "manual"] | None = None
     overdue_ratio: float | None = None
-    temperature: Literal["hot", "warm", "cool", "cold"] | None = None
     needs_contact: bool = False
 
 
