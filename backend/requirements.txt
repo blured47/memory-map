@@ -4,5 +4,6 @@ sqlalchemy>=2.0.36
 pydantic>=2.10
 python-multipart>=0.0.20
 pillow>=11.1
+pillow-heif>=0.18
 httpx>=0.28
 pytest>=8.3

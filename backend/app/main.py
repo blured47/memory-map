@@ -3,13 +3,14 @@ from fastapi.staticfiles import StaticFiles
 
 from .config import FRONTEND_DIR, KAKAO_JS_KEY
 from .db import Base, engine
-from .routers import meetings, persons
+from .routers import meetings, persons, photos
 
 Base.metadata.create_all(engine)
 
 app = FastAPI(title="Memory Map", description="사진·메모 기반 개인 인간관계 기억지도")
 app.include_router(persons.router)
 app.include_router(meetings.router)
+app.include_router(photos.router)
 
 
 @app.get("/api/config")
