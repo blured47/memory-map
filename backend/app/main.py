@@ -9,6 +9,7 @@ Base.metadata.create_all(engine)
 
 app = FastAPI(title="Memory Map", description="사진·메모 기반 개인 인간관계 기억지도")
 app.include_router(persons.router)
+app.include_router(persons.reminders_router)
 app.include_router(meetings.router)
 
 

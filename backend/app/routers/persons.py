@@ -1,11 +1,20 @@
+from dataclasses import asdict
+from datetime import datetime
+
 from fastapi import APIRouter, Depends, HTTPException, status
 from sqlalchemy import select
 from sqlalchemy.orm import Session
 
 from .. import models, schemas
+from ..contact import contact_status
 from ..db import get_db
 
 router = APIRouter(prefix="/api/persons", tags=["persons"])
+reminders_router = APIRouter(prefix="/api/reminders", tags=["persons"])
+
+
+def _now() -> datetime:
+    return datetime.now()
 
 
 def _to_out(person: models.Person) -> schemas.PersonOut:
@@ -13,6 +22,8 @@ def _to_out(person: models.Person) -> schemas.PersonOut:
     if person.meetings:
         out.last_met_at = max(m.met_at for m in person.meetings)
         out.meeting_count = len(person.meetings)
+    for key, value in asdict(contact_status(out.last_met_at, person.contact_cycle_days, _now())).items():
+        setattr(out, key, value)
     return out
 
 
@@ -57,3 +68,11 @@ def update_person(person_id: int, body: schemas.PersonUpdate, db: Session = Depe
 def delete_person(person_id: int, db: Session = Depends(get_db)):
     db.delete(_get_or_404(db, person_id))
     db.commit()
+
+
+@reminders_router.get("", response_model=list[schemas.PersonOut])
+def list_reminders(db: Session = Depends(get_db)):
+    """연락할 때가 된 사람 (평소 주기보다 오래 못 본 순)"""
+    persons = [_to_out(p) for p in db.scalars(select(models.Person)).all()]
+    due = [p for p in persons if p.needs_contact]
+    return sorted(due, key=lambda p: p.overdue_ratio, reverse=True)

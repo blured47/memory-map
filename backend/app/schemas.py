@@ -1,4 +1,5 @@
 from datetime import date, datetime
+from typing import Literal
 
 from pydantic import BaseModel, ConfigDict, Field
 
@@ -30,6 +31,12 @@ class PersonOut(PersonBase):
     created_at: datetime
     last_met_at: datetime | None = None
     meeting_count: int = 0
+    # 연락 주기 알림·관계 온도 (app/contact.py 참고)
+    days_since_last_met: int | None = None
+    cycle_days: int | None = None
+    overdue_ratio: float | None = None
+    temperature: Literal["hot", "warm", "cool", "cold"] | None = None
+    needs_contact: bool = False
 
 
 class PersonBrief(BaseModel):
