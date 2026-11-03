@@ -67,3 +67,20 @@ class MeetingOut(MeetingBase):
     photo_path: str | None
     created_at: datetime
     people: list[PersonBrief]
+
+
+class Place(BaseModel):
+    kakao_id: str
+    name: str
+    category: str | None = None
+    address: str | None = None
+    latitude: float
+    longitude: float
+    distance: int | None = None  # 기준 좌표에서의 거리(m)
+    url: str | None = None  # 카카오맵 장소 페이지
+
+
+class NearbyOut(BaseModel):
+    address: str | None = None
+    building_name: str | None = None
+    places: list[Place]

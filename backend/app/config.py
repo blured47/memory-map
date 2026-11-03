@@ -1,7 +1,12 @@
 import os
 from pathlib import Path
 
+from dotenv import load_dotenv
+
 BASE_DIR = Path(__file__).resolve().parents[2]
+
+# 프로젝트 맨 바깥의 .env 를 읽는다 (터미널에서 uvicorn 으로 바로 켜도 키가 들어가게)
+load_dotenv(BASE_DIR / ".env")
 DATA_DIR = Path(os.getenv("MEMORYMAP_DATA_DIR", BASE_DIR / "data"))
 DATABASE_URL = os.getenv("MEMORYMAP_DATABASE_URL", f"sqlite:///{DATA_DIR / 'memorymap.db'}")
 FRONTEND_DIR = BASE_DIR / "frontend"
