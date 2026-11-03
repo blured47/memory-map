@@ -14,7 +14,7 @@ router = APIRouter(prefix="/api/photos", tags=["photos"])
 
 MAX_UPLOAD_BYTES = 20 * 1024 * 1024
 MAX_SIDE = 2048  # 저장할 때 긴 변을 이 크기로 줄인다
-PHOTO_NAME = re.compile(r"^[0-9a-f]{32}\.jpg$")
+PHOTO_NAME = re.compile(r"^[0-9a-f]{32}\.webp$")
 
 
 def photo_exists(name: str) -> bool:
@@ -35,13 +35,13 @@ def upload_photo(file: UploadFile = File(...)):
 
     info = read_photo_info(image)
 
-    # 날짜·위치는 DB에 따로 저장하므로, 파일은 EXIF 없이 JPEG로 저장한다
-    # (아이폰 HEIC도 어디서나 보이게 되고, 사진 파일에 위치가 남지 않는다)
+    # 날짜·위치는 DB에 따로 저장하므로, 파일은 EXIF 없이 WebP로 저장한다
+    # (JPEG보다 용량이 작고, 아이폰 HEIC도 어디서나 보이며, 사진 파일에 위치가 남지 않는다)
     image = ImageOps.exif_transpose(image).convert("RGB")
     image.thumbnail((MAX_SIDE, MAX_SIDE))
-    name = f"{uuid.uuid4().hex}.jpg"
+    name = f"{uuid.uuid4().hex}.webp"
     PHOTOS_DIR.mkdir(parents=True, exist_ok=True)
-    image.save(PHOTOS_DIR / name, "JPEG", quality=85)
+    image.save(PHOTOS_DIR / name, "WEBP", quality=80)
 
     return schemas.PhotoOut(
         photo_path=name,
@@ -56,4 +56,4 @@ def upload_photo(file: UploadFile = File(...)):
 def get_photo(name: str):
     if not photo_exists(name):
         raise HTTPException(status.HTTP_404_NOT_FOUND, "사진을 찾을 수 없습니다")
-    return FileResponse(PHOTOS_DIR / name, media_type="image/jpeg")
+    return FileResponse(PHOTOS_DIR / name, media_type="image/webp")

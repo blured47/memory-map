@@ -36,7 +36,7 @@ def test_upload_reads_time_and_location(client):
     # 저장된 사진은 다시 받을 수 있고, 위치 정보는 지워져 있다
     saved = client.get(body["url"])
     assert saved.status_code == 200
-    assert saved.headers["content-type"] == "image/jpeg"
+    assert saved.headers["content-type"] == "image/webp"
     assert not Image.open(io.BytesIO(saved.content)).getexif().get_ifd(GPS_IFD)
 
 
@@ -68,7 +68,7 @@ def test_not_an_image_is_rejected(client):
 
 
 def test_unknown_photo_is_404(client):
-    assert client.get("/api/photos/" + "0" * 32 + ".jpg").status_code == 404
+    assert client.get("/api/photos/" + "0" * 32 + ".webp").status_code == 404
     assert client.get("/api/photos/..%2Fmemorymap.db").status_code == 404
 
 
