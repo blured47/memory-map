@@ -4,6 +4,7 @@ from sqlalchemy.orm import Session
 
 from .. import models, schemas
 from ..db import get_db
+from .photos import photo_exists
 
 router = APIRouter(prefix="/api/meetings", tags=["meetings"])
 
@@ -14,6 +15,12 @@ def _load_people(db: Session, person_ids: list[int]) -> list[models.Person]:
     if missing:
         raise HTTPException(status.HTTP_400_BAD_REQUEST, f"존재하지 않는 사람 id: {sorted(missing)}")
     return list(people)
+
+
+def _check_photo(photo_path: str | None) -> None:
+    # 사진은 먼저 POST /api/photos 로 올리고, 받은 photo_path 를 넣어야 한다
+    if photo_path is not None and not photo_exists(photo_path):
+        raise HTTPException(status.HTTP_400_BAD_REQUEST, f"올라간 사진이 없습니다: {photo_path}")
 
 
 def _get_or_404(db: Session, meeting_id: int) -> models.Meeting:
@@ -33,6 +40,7 @@ def list_meetings(person_id: int | None = None, db: Session = Depends(get_db)):
 
 @router.post("", response_model=schemas.MeetingOut, status_code=status.HTTP_201_CREATED)
 def create_meeting(body: schemas.MeetingCreate, db: Session = Depends(get_db)):
+    _check_photo(body.photo_path)
     data = body.model_dump(exclude={"person_ids"})
     meeting = models.Meeting(**data, people=_load_people(db, body.person_ids))
     db.add(meeting)
@@ -50,6 +58,7 @@ def get_meeting(meeting_id: int, db: Session = Depends(get_db)):
 def update_meeting(meeting_id: int, body: schemas.MeetingUpdate, db: Session = Depends(get_db)):
     meeting = _get_or_404(db, meeting_id)
     data = body.model_dump(exclude_unset=True)
+    _check_photo(data.get("photo_path"))
     if "person_ids" in data:
         meeting.people = _load_people(db, data.pop("person_ids"))
     for key, value in data.items():

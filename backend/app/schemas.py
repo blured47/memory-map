@@ -45,6 +45,7 @@ class MeetingBase(BaseModel):
     latitude: float | None = Field(default=None, ge=-90, le=90)
     longitude: float | None = Field(default=None, ge=-180, le=180)
     memo: str | None = None
+    photo_path: str | None = None
 
 
 class MeetingCreate(MeetingBase):
@@ -57,6 +58,7 @@ class MeetingUpdate(BaseModel):
     latitude: float | None = Field(default=None, ge=-90, le=90)
     longitude: float | None = Field(default=None, ge=-180, le=180)
     memo: str | None = None
+    photo_path: str | None = None
     person_ids: list[int] | None = Field(default=None, min_length=1)
 
 
@@ -64,6 +66,13 @@ class MeetingOut(MeetingBase):
     model_config = ConfigDict(from_attributes=True)
 
     id: int
-    photo_path: str | None
     created_at: datetime
     people: list[PersonBrief]
+
+
+class PhotoOut(BaseModel):
+    photo_path: str
+    url: str
+    taken_at: datetime | None = None
+    latitude: float | None = None
+    longitude: float | None = None
