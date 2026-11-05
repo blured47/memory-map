@@ -1,18 +1,30 @@
-from fastapi import APIRouter, Depends, HTTPException, status
+from dataclasses import asdict
+from datetime import datetime
+
+from fastapi import APIRouter, Depends, HTTPException, Query, status
 from sqlalchemy import select
 from sqlalchemy.orm import Session
 
 from .. import models, schemas
+from ..contact import DEFAULT_ALERT_RATIO, contact_status
 from ..db import get_db
 
 router = APIRouter(prefix="/api/persons", tags=["persons"])
+reminders_router = APIRouter(prefix="/api/reminders", tags=["persons"])
 
 
-def _to_out(person: models.Person) -> schemas.PersonOut:
+def _now() -> datetime:
+    return datetime.now()
+
+
+def _to_out(person: models.Person, alert_ratio: float = DEFAULT_ALERT_RATIO) -> schemas.PersonOut:
     out = schemas.PersonOut.model_validate(person)
     if person.meetings:
         out.last_met_at = max(m.met_at for m in person.meetings)
         out.meeting_count = len(person.meetings)
+    status_ = contact_status([m.met_at for m in person.meetings], person.contact_cycle_days, _now(), alert_ratio)
+    for key, value in asdict(status_).items():
+        setattr(out, key, value)
     return out
 
 
@@ -57,3 +69,14 @@ def update_person(person_id: int, body: schemas.PersonUpdate, db: Session = Depe
 def delete_person(person_id: int, db: Session = Depends(get_db)):
     db.delete(_get_or_404(db, person_id))
     db.commit()
+
+
+@reminders_router.get("", response_model=list[schemas.PersonOut])
+def list_reminders(
+    ratio: float = Query(DEFAULT_ALERT_RATIO, ge=1, le=5, description="평소 주기의 몇 배가 지나면 알릴지"),
+    db: Session = Depends(get_db),
+):
+    """평소보다 오래 만나지 못한 사람 (오래 못 본 순)"""
+    persons = [_to_out(p, ratio) for p in db.scalars(select(models.Person)).all()]
+    due = [p for p in persons if p.needs_contact]
+    return sorted(due, key=lambda p: p.overdue_ratio, reverse=True)
