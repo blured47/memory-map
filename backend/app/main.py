@@ -3,7 +3,7 @@ from fastapi.staticfiles import StaticFiles
 
 from .config import FRONTEND_DIR, KAKAO_JS_KEY
 from .db import Base, engine
-from .routers import meetings, persons, photos
+from .routers import meetings, persons, photos, places
 
 Base.metadata.create_all(engine)
 
@@ -12,6 +12,7 @@ app.include_router(persons.router)
 app.include_router(persons.reminders_router)
 app.include_router(meetings.router)
 app.include_router(photos.router)
+app.include_router(places.router)
 
 
 @app.get("/api/config")
