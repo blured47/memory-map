@@ -26,6 +26,7 @@ class Person(Base):
     created_at: Mapped[datetime] = mapped_column(DateTime, default=datetime.now)
 
     meetings: Mapped[list["Meeting"]] = relationship(secondary=meeting_people, back_populates="people")
+    memo_items: Mapped[list["MemoItem"]] = relationship(back_populates="person", cascade="all, delete-orphan")
 
 
 class Meeting(Base):
@@ -41,3 +42,21 @@ class Meeting(Base):
     created_at: Mapped[datetime] = mapped_column(DateTime, default=datetime.now)
 
     people: Mapped[list[Person]] = relationship(secondary=meeting_people, back_populates="meetings")
+    memo_items: Mapped[list["MemoItem"]] = relationship(back_populates="meeting", cascade="all, delete-orphan")
+
+
+class MemoItem(Base):
+    """AI가 메모에서 뽑아 사람별 카드에 저장한 내용"""
+
+    __tablename__ = "memo_items"
+
+    id: Mapped[int] = mapped_column(primary_key=True)
+    meeting_id: Mapped[int] = mapped_column(ForeignKey("meetings.id", ondelete="CASCADE"))
+    person_id: Mapped[int] = mapped_column(ForeignKey("persons.id", ondelete="CASCADE"))
+    category: Mapped[str] = mapped_column(String(20))  # interest, recommendation, question, anniversary
+    content: Mapped[str] = mapped_column(Text)
+    event_date: Mapped[str | None] = mapped_column(String(50))  # 기념일 날짜 (메모에 적힌 그대로)
+    created_at: Mapped[datetime] = mapped_column(DateTime, default=datetime.now)
+
+    meeting: Mapped[Meeting] = relationship(back_populates="memo_items")
+    person: Mapped[Person] = relationship(back_populates="memo_items")

@@ -100,3 +100,32 @@ class NearbyOut(BaseModel):
     address: str | None = None
     building_name: str | None = None
     places: list[Place]
+
+
+MemoCategory = Literal["interest", "recommendation", "question", "anniversary"]
+
+
+class MemoItemOut(BaseModel):
+    model_config = ConfigDict(from_attributes=True)
+
+    id: int
+    meeting_id: int
+    person_id: int
+    category: MemoCategory
+    content: str
+    event_date: str | None = None
+
+
+class MemoItemUpdate(BaseModel):
+    category: MemoCategory | None = None
+    content: str | None = Field(default=None, min_length=1)
+    event_date: str | None = None
+
+
+class PersonCard(BaseModel):
+    person_id: int
+    name: str
+    interests: list[MemoItemOut]
+    recommendations: list[MemoItemOut]
+    questions: list[MemoItemOut]
+    anniversaries: list[MemoItemOut]

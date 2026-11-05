@@ -93,6 +93,22 @@ cd backend && pytest
 
 `place_name`이 `null`이면 장소 미지정, 위도·경도는 없으면 생략할 수 있습니다.
 
+### 메모 분류 (AI)
+
+| 메서드 | 주소 | 설명 |
+|---|---|---|
+| POST | `/api/meetings/{id}/classify` | 만남 메모를 AI로 분류해 사람별 카드에 저장 (다시 실행하면 새로 분류, 20초 안팎 소요) |
+| GET | `/api/persons/{id}/card` | 사람별 카드: 관심사, 추천받은 내용, 다음에 물어볼 내용, 기념일 |
+| PATCH | `/api/memo-items/{id}` | 분류 결과 수정 |
+| DELETE | `/api/memo-items/{id}` | 분류 결과 삭제 |
+
+메모 분류를 쓰려면 [Ollama](https://ollama.com)를 설치하고 모델을 받아둡니다. 메모는 내 컴퓨터의 Ollama로만 전송됩니다.
+
+```bash
+ollama pull qwen3:8b
+ollama serve
+```
+
 ## 프로젝트 구조
 
 ```
