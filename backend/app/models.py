@@ -21,9 +21,10 @@ class Person(Base):
     name: Mapped[str] = mapped_column(String(50))
     relation: Mapped[str | None] = mapped_column(String(50))  # 예: 대학 동기, 가족
     birthday: Mapped[date | None] = mapped_column(Date)
-    contact_cycle_days: Mapped[int | None] = mapped_column(Integer)  # 사용자가 직접 지정한 연락 주기
+    contact_cycle_days: Mapped[int | None] = mapped_column(Integer, default=30)  # 사용자가 직접 지정한 연락 주기 (기본 30일)
     note: Mapped[str | None] = mapped_column(Text)
     created_at: Mapped[datetime] = mapped_column(DateTime, default=datetime.now)
+    deleted_at: Mapped[datetime | None] = mapped_column(DateTime, default=None)  # 소프트 삭제 (30일 후 완전 삭제)
 
     meetings: Mapped[list["Meeting"]] = relationship(secondary=meeting_people, back_populates="people")
     memo_items: Mapped[list["MemoItem"]] = relationship(back_populates="person", cascade="all, delete-orphan")

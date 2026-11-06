@@ -11,6 +11,20 @@ def test_person_crud(client):
     assert client.delete(f"/api/persons/{pid}").status_code == 204
     assert client.get(f"/api/persons/{pid}").status_code == 404
 
+    # 휴지통 목록에 나타나는지 확인
+    deleted = client.get("/api/persons/deleted").json()
+    assert any(p["id"] == pid for p in deleted)
+
+    # 복구 테스트
+    r_restore = client.post(f"/api/persons/{pid}/restore")
+    assert r_restore.status_code == 200
+    assert client.get(f"/api/persons/{pid}").status_code == 200
+
+    # 영구 완전 삭제 테스트
+    client.delete(f"/api/persons/{pid}")  # 다시 소프트 삭제
+    assert client.delete(f"/api/persons/{pid}/permanent").status_code == 204
+    assert not any(p["id"] == pid for p in client.get("/api/persons/deleted").json())
+
 
 def test_meeting_with_multiple_people(client):
     a = client.post("/api/persons", json={"name": "A"}).json()["id"]
