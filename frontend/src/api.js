@@ -77,6 +77,20 @@ export function createMeeting(meeting) {
   return request('/api/meetings', { method: 'POST', json: meeting });
 }
 
+export function deleteMeeting(meetingId) {
+  return request(`/api/meetings/${meetingId}`, { method: 'DELETE' });
+}
+
+// 카카오 로컬 API 키워드 검색 (위치를 주면 가까운 순) → [{ name, address, latitude, longitude, ... }]
+export function searchPlaces(query, lat, lon) {
+  const params = new URLSearchParams({ query, limit: '8' });
+  if (lat != null && lon != null) {
+    params.append('lat', String(lat));
+    params.append('lon', String(lon));
+  }
+  return request(`/api/places/search?${params}`);
+}
+
 // 사진을 올리면 서버가 EXIF 에서 촬영 시각·위치를 읽어 돌려준다 → { photo_path, url, taken_at, latitude, longitude }
 export function uploadPhoto(asset) {
   const form = new FormData();

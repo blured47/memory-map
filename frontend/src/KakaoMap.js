@@ -16,7 +16,7 @@ const mapHtml = (key) => `<!DOCTYPE html>
   <style>
     html, body, #map { margin: 0; padding: 0; width: 100%; height: 100%; }
     .pin { width: 48px; height: 48px; border-radius: 50%; border: 3px solid #fff; background: #2563eb center / cover no-repeat;
-           box-shadow: 0 2px 6px rgba(0,0,0,.35); }
+           box-shadow: 0 2px 6px rgba(0,0,0,.35); cursor: pointer; }
     .pin.dot { width: 18px; height: 18px; }
   </style>
   <script>
@@ -141,6 +141,9 @@ const KakaoMap = forwardRef(function KakaoMap({ markers = [], onMarkerPress }, r
         source={{ html: mapHtml(KAKAO_JS_KEY), baseUrl: BASE_URL }}
         javaScriptEnabled
         domStorageEnabled
+        // iOS WebView 자체가 스크롤되면 지도를 끄는 동작과 겹친다
+        bounces={false}
+        scrollEnabled={false}
         onMessage={handleMessage}
         onError={(e) => setError(`WebView 오류: ${e.nativeEvent.description}`)}
         onHttpError={(e) => setError(`HTTP 오류: ${e.nativeEvent.statusCode}`)}
@@ -160,6 +163,6 @@ const styles = StyleSheet.create({
   container: { flex: 1 },
   center: { flex: 1, alignItems: 'center', justifyContent: 'center', padding: 24 },
   message: { fontSize: 16, textAlign: 'center' },
-  errorBox: { position: 'absolute', left: 12, right: 12, bottom: 104, backgroundColor: '#b91c1c', padding: 12, borderRadius: 8 },
+  errorBox: { position: 'absolute', left: 12, right: 12, bottom: 170, backgroundColor: '#b91c1c', padding: 12, borderRadius: 8 },
   errorText: { color: '#fff', fontSize: 14 },
 });

@@ -4,6 +4,7 @@
   "main": "index.js",
   "scripts": {
     "start": "expo start",
+    "ios": "expo run:ios",
     "android": "expo run:android"
   },
   "dependencies": {
@@ -14,6 +15,7 @@
     "expo-status-bar": "~58.0.4",
     "react": "19.3.0",
     "react-native": "0.88.1",
+    "react-native-safe-area-context": "~5.11.1",
     "react-native-webview": "14.0.1"
   }
 }

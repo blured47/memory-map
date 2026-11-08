@@ -3,7 +3,9 @@ import {
   ActivityIndicator,
   Alert,
   FlatList,
+  KeyboardAvoidingView,
   Modal,
+  Platform,
   Pressable,
   ScrollView,
   StyleSheet,
@@ -11,6 +13,7 @@ import {
   TextInput,
   View,
 } from 'react-native';
+import { useSafeAreaInsets } from 'react-native-safe-area-context';
 
 import {
   createPersonFull,
@@ -19,10 +22,12 @@ import {
   fetchPersons,
   permanentDeletePerson,
   restorePerson,
+  updatePerson,
 } from './api';
 import { formatDate } from './datetime';
 
 export default function PersonManagerSheet({ visible, onClose, onPersonsChanged }) {
+  const insets = useSafeAreaInsets();
   const [tab, setTab] = useState('list'); // 'list' | 'trash'
   const [persons, setPersons] = useState([]);
   const [deletedPersons, setDeletedPersons] = useState([]);
@@ -30,8 +35,9 @@ export default function PersonManagerSheet({ visible, onClose, onPersonsChanged 
   const [collapsedRelations, setCollapsedRelations] = useState(new Set());
   const [sortMode, setSortMode] = useState('name'); // 'name' | 'count_desc'
 
-  // 신규 등록 폼 상태
+  // 등록·수정 폼 상태 (editingPerson 이 있으면 수정)
   const [showAddForm, setShowAddForm] = useState(false);
+  const [editingPerson, setEditingPerson] = useState(null);
   const [newName, setNewName] = useState('');
   const [newRelation, setNewRelation] = useState('');
   const [newCycleDays, setNewCycleDays] = useState('30');
@@ -175,30 +181,47 @@ export default function PersonManagerSheet({ visible, onClose, onPersonsChanged 
     );
   };
 
-  // 새 인물 등록 제출
+  const closeForm = () => {
+    setNewName('');
+    setNewRelation('');
+    setNewCycleDays('30');
+    setEditingPerson(null);
+    setShowAddForm(false);
+  };
+
+  const startEdit = (person) => {
+    setNewName(person.name);
+    setNewRelation(person.relation ?? '');
+    setNewCycleDays(String(person.contact_cycle_days ?? 30));
+    setEditingPerson(person);
+    setShowAddForm(true);
+  };
+
+  // 등록·수정 제출
   const handleAddPerson = async () => {
     const trimmedName = newName.trim();
     if (!trimmedName) {
       return Alert.alert('입력 확인', '이름을 입력해 주세요.');
     }
 
-    // 동명이인 검사
+    // 동명이인 검사 (수정 중인 본인은 제외)
     const trimmedRel = newRelation.trim();
-    const duplicateExact = persons.find(
+    const others = persons.filter((p) => p.id !== editingPerson?.id);
+    const duplicateExact = others.find(
       (p) => p.name.trim() === trimmedName && (p.relation?.trim() || '') === trimmedRel,
     );
     if (duplicateExact) {
-      return Alert.alert('등록 불가', '이름과 관계가 완전히 동일한 인물이 이미 존재합니다.');
+      return Alert.alert('저장 불가', '이름과 관계가 완전히 동일한 인물이 이미 존재합니다.');
     }
 
-    const duplicateNameOnly = persons.find((p) => p.name.trim() === trimmedName);
+    const duplicateNameOnly = others.find((p) => p.name.trim() === trimmedName);
     if (duplicateNameOnly) {
       Alert.alert(
         '동명이인 주의',
-        `'${duplicateNameOnly.relation || '미지정'}'에 이미 같은 이름의 인물이 있습니다. 계속 추가할까요?`,
+        `'${duplicateNameOnly.relation || '미지정'}'에 이미 같은 이름의 인물이 있습니다. 계속할까요?`,
         [
           { text: '취소', style: 'cancel' },
-          { text: '추가', onPress: () => submitNewPerson() },
+          { text: '계속', onPress: () => submitNewPerson() },
         ],
       );
       return;
@@ -211,20 +234,20 @@ export default function PersonManagerSheet({ visible, onClose, onPersonsChanged 
     setSubmitting(true);
     try {
       const cycleDays = parseInt(newCycleDays, 10);
-      await createPersonFull({
+      const body = {
         name: newName.trim(),
         relation: newRelation.trim() || null,
-        contact_cycle_days: isNaN(cycleDays) ? 30 : cycleDays,
-      });
-      setNewName('');
-      setNewRelation('');
-      setNewCycleDays('30');
-      setShowAddForm(false);
+        contact_cycle_days: cycleDays >= 1 ? cycleDays : 30,
+      };
+      const editing = !!editingPerson;
+      if (editing) await updatePerson(editingPerson.id, body);
+      else await createPersonFull(body);
+      closeForm();
       await loadData();
       onPersonsChanged?.();
-      Alert.alert('완료', '새로운 사람이 등록되었습니다.');
+      Alert.alert('완료', editing ? '정보를 수정했습니다.' : '새로운 사람이 등록되었습니다.');
     } catch (e) {
-      Alert.alert('등록 실패', e.message);
+      Alert.alert('저장 실패', e.message);
     } finally {
       setSubmitting(false);
     }
@@ -232,8 +255,9 @@ export default function PersonManagerSheet({ visible, onClose, onPersonsChanged 
 
   return (
     <Modal visible={visible} transparent animationType="slide" onRequestClose={onClose}>
+      <KeyboardAvoidingView style={styles.flex} behavior={Platform.OS === 'ios' ? 'padding' : undefined}>
       <Pressable style={styles.backdrop} onPress={onClose} />
-      <View style={styles.sheet}>
+      <View style={[styles.sheet, { paddingBottom: insets.bottom + 8 }]}>
         {/* 상단 헤더 */}
         <View style={styles.header}>
           <Text style={styles.title}>사람 관리</Text>
@@ -273,7 +297,7 @@ export default function PersonManagerSheet({ visible, onClose, onPersonsChanged 
             <View style={styles.toolbar}>
               <Pressable
                 style={[styles.btnAdd, showAddForm && styles.btnAddActive]}
-                onPress={() => setShowAddForm(!showAddForm)}
+                onPress={() => (showAddForm ? closeForm() : setShowAddForm(true))}
               >
                 <Text style={styles.btnAddText}>{showAddForm ? '✕ 닫기' : '＋ 사람 추가'}</Text>
               </Pressable>
@@ -298,7 +322,7 @@ export default function PersonManagerSheet({ visible, onClose, onPersonsChanged 
             {/* 사람 추가 인라인 폼 */}
             {showAddForm && (
               <View style={styles.addFormBox}>
-                <Text style={styles.formTitle}>새로운 사람 등록</Text>
+                <Text style={styles.formTitle}>{editingPerson ? `${editingPerson.name} 님 정보 수정` : '새로운 사람 등록'}</Text>
                 <TextInput
                   style={styles.input}
                   placeholder="이름 (필수)"
@@ -316,7 +340,7 @@ export default function PersonManagerSheet({ visible, onClose, onPersonsChanged 
                 {existingRelations.length > 0 && (
                   <View style={styles.tagWrap}>
                     <Text style={styles.tagLabel}>추천 태그:</Text>
-                    <ScrollView horizontal showsHorizontalScrollIndicator={false}>
+                    <ScrollView horizontal showsHorizontalScrollIndicator={false} keyboardShouldPersistTaps="handled">
                       {existingRelations.map((rel) => (
                         <Pressable
                           key={rel}
@@ -350,7 +374,7 @@ export default function PersonManagerSheet({ visible, onClose, onPersonsChanged 
                   {submitting ? (
                     <ActivityIndicator size="small" color="#fff" />
                   ) : (
-                    <Text style={styles.btnSubmitText}>등록 완료</Text>
+                    <Text style={styles.btnSubmitText}>{editingPerson ? '수정 완료' : '등록 완료'}</Text>
                   )}
                 </Pressable>
               </View>
@@ -361,6 +385,7 @@ export default function PersonManagerSheet({ visible, onClose, onPersonsChanged 
               data={clusteredPersons}
               keyExtractor={(item) => item.relation}
               contentContainerStyle={styles.listContainer}
+              keyboardShouldPersistTaps="handled"
               ListEmptyComponent={
                 <View style={styles.empty}>
                   <Text style={styles.emptyText}>등록된 사람이 없습니다.</Text>
@@ -395,6 +420,13 @@ export default function PersonManagerSheet({ visible, onClose, onPersonsChanged 
                               </Text>
                             </View>
                             <Pressable
+                              style={styles.btnEdit}
+                              onPress={() => startEdit(person)}
+                              hitSlop={8}
+                            >
+                              <Text style={styles.btnEditText}>수정</Text>
+                            </Pressable>
+                            <Pressable
                               style={styles.btnDelete}
                               onPress={() => handleDeletePerson(person)}
                               hitSlop={8}
@@ -422,7 +454,8 @@ export default function PersonManagerSheet({ visible, onClose, onPersonsChanged 
               </View>
             }
             renderItem={({ item }) => {
-              const deletedAt = new Date(item.deleted_at);
+              // 서버 시각의 마이크로초는 기기마다 해석이 달라 초까지만 쓴다
+              const deletedAt = new Date(item.deleted_at.slice(0, 19));
               const daysPassed = Math.floor((new Date() - deletedAt) / (1000 * 60 * 60 * 24));
               const daysLeft = Math.max(30 - daysPassed, 0);
 
@@ -457,19 +490,21 @@ export default function PersonManagerSheet({ visible, onClose, onPersonsChanged 
           />
         )}
       </View>
+      </KeyboardAvoidingView>
     </Modal>
   );
 }
 
 const styles = StyleSheet.create({
+  flex: { flex: 1 },
   backdrop: { flex: 1, backgroundColor: 'rgba(0,0,0,0.4)' },
   sheet: {
     backgroundColor: '#fff',
     borderTopLeftRadius: 20,
     borderTopRightRadius: 20,
     maxHeight: '85%',
-    minHeight: '60%',
-    paddingBottom: 24,
+    minHeight: '50%',
+    flexShrink: 1,
   },
   header: {
     flexDirection: 'row',
@@ -613,6 +648,8 @@ const styles = StyleSheet.create({
   personInfo: { flex: 1 },
   personName: { fontSize: 15, fontWeight: '600', color: '#0f172a' },
   personMeta: { fontSize: 12, color: '#64748b', marginTop: 2 },
+  btnEdit: { paddingVertical: 4, paddingHorizontal: 8 },
+  btnEditText: { fontSize: 12, color: '#2563eb' },
   btnDelete: { paddingVertical: 4, paddingHorizontal: 8 },
   btnDeleteText: { fontSize: 12, color: '#ef4444' },
 
@@ -654,3 +691,4 @@ const styles = StyleSheet.create({
   empty: { padding: 40, alignItems: 'center' },
   emptyText: { color: '#94a3b8', fontSize: 14 },
 });
+

@@ -12,36 +12,57 @@ import {
   TextInput,
   View,
 } from 'react-native';
+import { useSafeAreaInsets } from 'react-native-safe-area-context';
 
-import { createMeeting, createPerson, fetchPersons, uploadPhoto } from './api';
-import { formatDateTime, nowLocalIso } from './datetime';
+import { createMeeting, createPerson, fetchPersons, searchPlaces, uploadPhoto } from './api';
+import { fromInputValue, nowLocalIso, toInputValue } from './datetime';
 
-// 고른 사진(asset)을 올리고, 서버가 EXIF 에서 읽은 촬영 시각·위치로 만남을 기록한다
-export default function PhotoRecordSheet({ asset, onClose, onSaved }) {
+const SEARCH_DELAY_MS = 300;
+
+// 만남을 기록한다. draft.asset 이 있으면 사진을 올려 서버가 EXIF 에서 읽은 촬영 시각·위치를 채우고,
+// 없으면(직접 기록) 지금 시각에서 시작한다
+export default function PhotoRecordSheet({ draft, onClose, onSaved }) {
+  const insets = useSafeAreaInsets();
+  const asset = draft?.asset ?? null;
+
   const [photo, setPhoto] = useState(null);
   const [uploadError, setUploadError] = useState(null);
   const [persons, setPersons] = useState([]);
   const [selectedIds, setSelectedIds] = useState([]);
   const [newName, setNewName] = useState('');
+  const [metAt, setMetAt] = useState('');
   const [placeName, setPlaceName] = useState('');
+  const [searching, setSearching] = useState(false);
+  const [places, setPlaces] = useState([]);
+  const [pickedPlace, setPickedPlace] = useState(null);
   const [memo, setMemo] = useState('');
   const [saving, setSaving] = useState(false);
   const [error, setError] = useState(null);
 
   useEffect(() => {
-    if (!asset) return;
+    if (!draft) return;
     let cancelled = false;
     setPhoto(null);
     setUploadError(null);
     setSelectedIds([]);
     setNewName('');
+    setMetAt(toInputValue(nowLocalIso()));
     setPlaceName('');
+    setSearching(false);
+    setPlaces([]);
+    setPickedPlace(null);
     setMemo('');
     setError(null);
 
-    uploadPhoto(asset)
-      .then((p) => !cancelled && setPhoto(p))
-      .catch((e) => !cancelled && setUploadError(e.message));
+    if (draft.asset) {
+      uploadPhoto(draft.asset)
+        .then((p) => {
+          if (cancelled) return;
+          setPhoto(p);
+          if (p.taken_at) setMetAt(toInputValue(p.taken_at));
+        })
+        .catch((e) => !cancelled && setUploadError(e.message));
+    }
     fetchPersons()
       .then((list) => !cancelled && setPersons(list))
       .catch((e) => !cancelled && setError(e.message));
@@ -49,7 +70,38 @@ export default function PhotoRecordSheet({ asset, onClose, onSaved }) {
     return () => {
       cancelled = true;
     };
-  }, [asset]);
+  }, [draft]);
+
+  // 장소 이름을 입력하면 잠시 뒤 카카오 장소 검색 (사진 위치가 있으면 가까운 순)
+  useEffect(() => {
+    const query = placeName.trim();
+    if (!searching || !query) {
+      setPlaces([]);
+      return;
+    }
+    let cancelled = false;
+    const timer = setTimeout(() => {
+      searchPlaces(query, photo?.latitude, photo?.longitude)
+        .then((list) => !cancelled && setPlaces(list))
+        .catch(() => !cancelled && setPlaces([])); // 검색이 안 돼도 이름은 직접 적을 수 있다
+    }, SEARCH_DELAY_MS);
+    return () => {
+      cancelled = true;
+      clearTimeout(timer);
+    };
+  }, [placeName, searching, photo]);
+
+  const changePlaceName = (text) => {
+    setPlaceName(text);
+    setPickedPlace(null);
+    setSearching(true);
+  };
+
+  const pickPlace = (place) => {
+    setPlaceName(place.name);
+    setPickedPlace(place);
+    setSearching(false);
+  };
 
   const toggle = (id) =>
     setSelectedIds((ids) => (ids.includes(id) ? ids.filter((x) => x !== id) : [...ids, id]));
@@ -68,7 +120,17 @@ export default function PhotoRecordSheet({ asset, onClose, onSaved }) {
     }
   };
 
+  // 고른 장소의 좌표가 사진 위치보다 우선한다
+  const latitude = pickedPlace?.latitude ?? photo?.latitude ?? null;
+  const longitude = pickedPlace?.longitude ?? photo?.longitude ?? null;
+  const hasLocation = latitude != null && longitude != null;
+
   const save = async () => {
+    const metAtIso = fromInputValue(metAt);
+    if (!metAtIso) {
+      setError('날짜와 시각을 2026-10-20 18:30 형식으로 입력하세요');
+      return;
+    }
     if (selectedIds.length === 0) {
       setError('함께한 사람을 한 명 이상 선택하세요');
       return;
@@ -76,12 +138,12 @@ export default function PhotoRecordSheet({ asset, onClose, onSaved }) {
     setSaving(true);
     try {
       const meeting = await createMeeting({
-        met_at: photo.taken_at ?? nowLocalIso(),
+        met_at: metAtIso,
         place_name: placeName.trim() || null,
-        latitude: photo.latitude,
-        longitude: photo.longitude,
+        latitude,
+        longitude,
         memo: memo.trim() || null,
-        photo_path: photo.photo_path,
+        photo_path: photo?.photo_path ?? null,
         person_ids: selectedIds,
       });
       onSaved(meeting);
@@ -92,15 +154,15 @@ export default function PhotoRecordSheet({ asset, onClose, onSaved }) {
     }
   };
 
-  const hasLocation = photo?.latitude != null && photo?.longitude != null;
+  const waitingForPhoto = !!asset && !photo;
 
   return (
-    <Modal visible={!!asset} transparent animationType="slide" onRequestClose={onClose}>
-      <Pressable style={styles.backdrop} onPress={onClose} />
-      <KeyboardAvoidingView behavior={Platform.OS === 'ios' ? 'padding' : undefined}>
-        <View style={styles.sheet}>
+    <Modal visible={!!draft} transparent animationType="slide" onRequestClose={onClose}>
+      <KeyboardAvoidingView style={styles.flex} behavior={Platform.OS === 'ios' ? 'padding' : undefined}>
+        <Pressable style={styles.backdrop} onPress={onClose} />
+        <View style={[styles.sheet, { paddingBottom: insets.bottom + 16 }]}>
           <View style={styles.header}>
-            <Text style={styles.title}>사진으로 기록</Text>
+            <Text style={styles.title}>{asset ? '사진으로 기록' : '직접 기록'}</Text>
             <Pressable onPress={onClose} hitSlop={12}>
               <Text style={styles.close}>취소</Text>
             </Pressable>
@@ -109,27 +171,24 @@ export default function PhotoRecordSheet({ asset, onClose, onSaved }) {
           <ScrollView keyboardShouldPersistTaps="handled">
             {asset && <Image source={{ uri: asset.uri }} style={styles.preview} resizeMode="cover" />}
 
-            {uploadError ? (
-              <Text style={styles.errorText}>사진 업로드 실패: {uploadError}</Text>
-            ) : !photo ? (
-              <View style={styles.row}>
-                <ActivityIndicator />
-                <Text style={styles.info}>  사진을 올리고 촬영 정보를 읽는 중…</Text>
-              </View>
-            ) : (
-              <View style={styles.exifBox}>
-                <Text style={styles.info}>
-                  촬영 시각:{' '}
-                  {photo.taken_at ? formatDateTime(photo.taken_at) : '정보 없음 (지금 시각으로 저장)'}
-                </Text>
-                <Text style={styles.info}>
-                  위치:{' '}
-                  {hasLocation
-                    ? `${photo.latitude.toFixed(5)}, ${photo.longitude.toFixed(5)}`
-                    : '정보 없음 (지도에 표시되지 않습니다)'}
-                </Text>
-              </View>
-            )}
+            {asset &&
+              (uploadError ? (
+                <Text style={styles.errorText}>사진 업로드 실패: {uploadError}</Text>
+              ) : !photo ? (
+                <View style={styles.row}>
+                  <ActivityIndicator />
+                  <Text style={styles.info}>  사진을 올리고 촬영 정보를 읽는 중…</Text>
+                </View>
+              ) : (
+                <View style={styles.exifBox}>
+                  <Text style={styles.info}>
+                    촬영 시각: {photo.taken_at ? '사진에서 읽음' : '정보 없음 (아래에서 입력)'}
+                  </Text>
+                  <Text style={styles.info}>
+                    촬영 위치: {photo.latitude != null ? '사진에서 읽음' : '정보 없음 (장소를 검색해 고를 수 있어요)'}
+                  </Text>
+                </View>
+              ))}
 
             <Text style={styles.label}>함께한 사람</Text>
             <View style={styles.chips}>
@@ -156,8 +215,35 @@ export default function PhotoRecordSheet({ asset, onClose, onSaved }) {
               </Pressable>
             </View>
 
-            <Text style={styles.label}>장소 이름</Text>
-            <TextInput style={styles.input} placeholder="예: 학교 앞 카페" value={placeName} onChangeText={setPlaceName} />
+            <Text style={styles.label}>날짜와 시각</Text>
+            <TextInput
+              style={styles.input}
+              placeholder="2026-10-20 18:30"
+              value={metAt}
+              onChangeText={setMetAt}
+              keyboardType="numbers-and-punctuation"
+              autoCorrect={false}
+            />
+
+            <Text style={styles.label}>장소</Text>
+            <TextInput
+              style={styles.input}
+              placeholder="장소 검색 (예: 학교 앞 카페)"
+              value={placeName}
+              onChangeText={changePlaceName}
+              autoCorrect={false}
+            />
+            {places.map((place) => (
+              <Pressable key={place.kakao_id} style={styles.placeItem} onPress={() => pickPlace(place)}>
+                <Text style={styles.placeName}>{place.name}</Text>
+                {place.address ? <Text style={styles.placeAddress}>{place.address}</Text> : null}
+              </Pressable>
+            ))}
+            {!waitingForPhoto && (
+              <Text style={styles.hint}>
+                {hasLocation ? '지도에 표시됩니다' : '위치가 없으면 지도에는 표시되지 않고 만남 기록에만 남습니다'}
+              </Text>
+            )}
 
             <Text style={styles.label}>메모</Text>
             <TextInput
@@ -171,9 +257,9 @@ export default function PhotoRecordSheet({ asset, onClose, onSaved }) {
             {error && <Text style={styles.errorText}>{error}</Text>}
 
             <Pressable
-              style={[styles.saveButton, (!photo || saving) && styles.saveButtonDisabled]}
+              style={[styles.saveButton, (waitingForPhoto || saving) && styles.saveButtonDisabled]}
               onPress={save}
-              disabled={!photo || saving}
+              disabled={waitingForPhoto || saving}
             >
               <Text style={styles.saveButtonText}>{saving ? '저장 중…' : '저장'}</Text>
             </Pressable>
@@ -186,7 +272,7 @@ export default function PhotoRecordSheet({ asset, onClose, onSaved }) {
 
 const styles = StyleSheet.create({
   backdrop: { flex: 1, backgroundColor: 'rgba(0,0,0,0.3)' },
-  sheet: { maxHeight: '90%', backgroundColor: '#fff', borderTopLeftRadius: 16, borderTopRightRadius: 16, paddingHorizontal: 16, paddingTop: 16, paddingBottom: 24 },
+  sheet: { maxHeight: '90%', flexShrink: 1, backgroundColor: '#fff', borderTopLeftRadius: 16, borderTopRightRadius: 16, paddingHorizontal: 16, paddingTop: 16 },
   header: { flexDirection: 'row', justifyContent: 'space-between', alignItems: 'center', marginBottom: 12 },
   title: { fontSize: 18, fontWeight: '700' },
   close: { fontSize: 15, color: '#2563eb' },
@@ -203,6 +289,10 @@ const styles = StyleSheet.create({
   chipTextActive: { color: '#fff', fontWeight: '600' },
   input: { borderWidth: 1, borderColor: '#d1d5db', borderRadius: 8, paddingHorizontal: 12, paddingVertical: 8, fontSize: 15 },
   memo: { minHeight: 80, textAlignVertical: 'top' },
+  placeItem: { paddingVertical: 10, paddingHorizontal: 4, borderBottomWidth: StyleSheet.hairlineWidth, borderBottomColor: '#e5e7eb' },
+  placeName: { fontSize: 14, fontWeight: '600', color: '#111827' },
+  placeAddress: { fontSize: 12, color: '#6b7280', marginTop: 2 },
+  hint: { fontSize: 12, color: '#6b7280', marginTop: 6 },
   smallButton: { marginLeft: 8, paddingHorizontal: 14, paddingVertical: 10, borderRadius: 8, backgroundColor: '#f3f4f6' },
   smallButtonText: { fontSize: 14, color: '#111827' },
   errorText: { fontSize: 14, color: '#b91c1c', marginTop: 12 },

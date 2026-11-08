@@ -1,4 +1,5 @@
 import { FlatList, Modal, Pressable, RefreshControl, StyleSheet, Text, View } from 'react-native';
+import { useSafeAreaInsets } from 'react-native-safe-area-context';
 
 export const RATIO_OPTIONS = [1.2, 1.5, 2, 3];
 
@@ -32,10 +33,12 @@ function ReminderItem({ person }) {
 }
 
 export default function ReminderSheet({ visible, onClose, reminders, loading, error, ratio, onChangeRatio, onRefresh }) {
+  const insets = useSafeAreaInsets();
+
   return (
     <Modal visible={visible} transparent animationType="slide" onRequestClose={onClose}>
       <Pressable style={styles.backdrop} onPress={onClose} />
-      <View style={styles.sheet}>
+      <View style={[styles.sheet, { paddingBottom: insets.bottom + 16 }]}>
         <View style={styles.header}>
           <Text style={styles.title}>연락할 사람</Text>
           <Pressable onPress={onClose} hitSlop={12}>
@@ -85,7 +88,7 @@ export default function ReminderSheet({ visible, onClose, reminders, loading, er
 
 const styles = StyleSheet.create({
   backdrop: { flex: 1, backgroundColor: 'rgba(0,0,0,0.3)' },
-  sheet: { maxHeight: '70%', minHeight: '40%', backgroundColor: '#fff', borderTopLeftRadius: 16, borderTopRightRadius: 16, paddingHorizontal: 16, paddingTop: 16, paddingBottom: 24 },
+  sheet: { maxHeight: '70%', minHeight: '40%', backgroundColor: '#fff', borderTopLeftRadius: 16, borderTopRightRadius: 16, paddingHorizontal: 16, paddingTop: 16 },
   header: { flexDirection: 'row', justifyContent: 'space-between', alignItems: 'center', marginBottom: 8 },
   title: { fontSize: 18, fontWeight: '700' },
   close: { fontSize: 15, color: '#2563eb' },
