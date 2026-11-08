@@ -1,7 +1,7 @@
 # Memory Map — 개인 인간관계 기억지도
 
 사진과 자유 메모만 올리면 만남 장소·시간·대화 내용이 사람별로 정리되고, 지도 위에 시각화되며,
-평소보다 오래 연락하지 못한 사람을 알려주는 시스템입니다.
+평소보다 오래 연락하지 못한 사람을 알려주는 아이폰 앱입니다.
 
 > 오픈소스기초및설계 3반 9조 — 안태현, 최연성, 임지수
 
@@ -18,26 +18,30 @@
 ## 기술 스택
 
 - 백엔드: Python, FastAPI, SQLAlchemy, SQLite
-- 프론트엔드: HTML / CSS / JavaScript, 카카오맵 JavaScript SDK
+- 앱: React Native (Expo), 카카오맵 JavaScript SDK (WebView)
 - 사진 처리: Pillow (EXIF)
 - AI: Ollama (로컬 LLM — 메모는 외부로 전송하지 않음)
 - 배포: Docker
 
 ## 실행 방법
 
-### 로컬 (Python 3.12+)
+서버를 먼저 켜고 아이폰 앱을 연결합니다. 앱 실행 방법은 [frontend/README.md](frontend/README.md)를 보세요.
+
+### 서버 (Python 3.12+)
 
 ```bash
 python3 -m venv .venv
 source .venv/bin/activate
 pip install -r backend/requirements.txt
-cp .env.example .env   # 카카오 키 입력
-cd backend && uvicorn app.main:app --reload
+cp .env.example .env   # 카카오 REST 키 입력
+cd backend && uvicorn app.main:app --reload --host 0.0.0.0
 ```
 
-브라우저에서 http://localhost:8000 접속, API 문서는 http://localhost:8000/docs
+아이폰이 접속할 수 있도록 `--host 0.0.0.0` 으로 켭니다. 서버에는 로그인 기능이 없어 같은 네트워크의 누구나 기록을 볼 수 있으니 믿을 수 있는 네트워크에서만 켜세요.
 
-### Docker
+API 문서는 http://localhost:8000/docs 에서 볼 수 있습니다.
+
+### 서버 (Docker)
 
 ```bash
 cp .env.example .env
@@ -140,12 +144,12 @@ ollama serve
 ```
 backend/
   app/
-    main.py          FastAPI 앱, 정적 파일 서빙
+    main.py          FastAPI 앱
     models.py        DB 모델 (Person, Meeting)
     schemas.py       요청/응답 스키마
     routers/         API 라우터
   tests/
-frontend/            index.html, app.js, style.css
+frontend/            아이폰 앱 (React Native, Expo)
 data/                로컬 DB, 사진 (git 제외)
 ```
 
