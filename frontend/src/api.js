@@ -45,6 +45,30 @@ export function createPerson(name) {
   return request('/api/persons', { method: 'POST', json: { name } });
 }
 
+export function createPersonFull(personData) {
+  return request('/api/persons', { method: 'POST', json: personData });
+}
+
+export function updatePerson(personId, personData) {
+  return request(`/api/persons/${personId}`, { method: 'PATCH', json: personData });
+}
+
+export function deletePerson(personId) {
+  return request(`/api/persons/${personId}`, { method: 'DELETE' });
+}
+
+export function fetchDeletedPersons() {
+  return request('/api/persons/deleted');
+}
+
+export function restorePerson(personId) {
+  return request(`/api/persons/${personId}/restore`, { method: 'POST' });
+}
+
+export function permanentDeletePerson(personId) {
+  return request(`/api/persons/${personId}/permanent`, { method: 'DELETE' });
+}
+
 export function fetchMeetings() {
   return request('/api/meetings');
 }

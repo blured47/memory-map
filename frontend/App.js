@@ -5,6 +5,7 @@ import * as ImagePicker from 'expo-image-picker';
 
 import KakaoMap from './src/KakaoMap';
 import MeetingCard from './src/MeetingCard';
+import PersonManagerSheet from './src/PersonManagerSheet';
 import PhotoRecordSheet from './src/PhotoRecordSheet';
 import ReminderSheet from './src/ReminderSheet';
 import { fetchMeetings, fetchReminders, photoUrl } from './src/api';
@@ -15,6 +16,7 @@ export default function App() {
   const map = useRef(null);
 
   const [sheetOpen, setSheetOpen] = useState(false);
+  const [personSheetOpen, setPersonSheetOpen] = useState(false);
   const [ratio, setRatio] = useState(DEFAULT_RATIO);
   const [reminders, setReminders] = useState([]);
   const [loading, setLoading] = useState(false);
@@ -95,6 +97,10 @@ export default function App() {
         onMarkerPress={(id) => setSelectedMeeting(meetings.find((m) => m.id === id) ?? null)}
       />
 
+      <Pressable style={styles.personButton} onPress={() => setPersonSheetOpen(true)}>
+        <Text style={styles.personButtonText}>👥 사람 관리</Text>
+      </Pressable>
+
       <Pressable style={styles.reminderButton} onPress={openSheet}>
         <Text style={styles.reminderButtonText}>연락할 사람</Text>
         <View style={[styles.badge, error && styles.badgeError]}>
@@ -106,6 +112,11 @@ export default function App() {
         <Text style={styles.recordButtonText}>＋ 사진으로 기록</Text>
       </Pressable>
 
+      <PersonManagerSheet
+        visible={personSheetOpen}
+        onClose={() => setPersonSheetOpen(false)}
+        onPersonsChanged={load}
+      />
       <ReminderSheet
         visible={sheetOpen}
         onClose={() => setSheetOpen(false)}
@@ -135,6 +146,19 @@ const shadow = {
 
 const styles = StyleSheet.create({
   container: { flex: 1 },
+  personButton: {
+    position: 'absolute',
+    top: TOP_OFFSET,
+    left: 12,
+    flexDirection: 'row',
+    alignItems: 'center',
+    backgroundColor: '#fff',
+    paddingVertical: 8,
+    paddingHorizontal: 14,
+    borderRadius: 20,
+    ...shadow,
+  },
+  personButtonText: { fontSize: 14, fontWeight: '600', color: '#1e293b' },
   reminderButton: {
     position: 'absolute',
     top: TOP_OFFSET,
