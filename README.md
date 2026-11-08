@@ -9,10 +9,10 @@
 
 | 단계 | 내용 | 상태 |
 |---|---|---|
-| 1 | 사람 등록, 만남 기록 CRUD | 진행 중 |
-| 2 | 카카오맵 연동 (장소 검색, 기억지도) | 예정 |
-| 3 | 사진 EXIF 기반 자동 기록 (Pillow) | 예정 |
-| 4 | AI 메모 자동 분류 (Ollama), 맞춤형 연락 알림 | 예정 |
+| 1 | 사람 등록, 만남 기록 CRUD | 서버 완료 |
+| 2 | 카카오맵 연동 (장소 검색, 기억지도) | 서버 완료, 앱 진행 중 |
+| 3 | 사진 EXIF 기반 자동 기록 (Pillow) | 서버 완료, 앱 진행 중 |
+| 4 | AI 메모 자동 분류 (Ollama), 맞춤형 연락 알림 | 서버 완료, 앱 진행 중 |
 | 5 | 통합 테스트, 정확도 검증 | 예정 |
 
 ## 기술 스택
@@ -48,6 +48,91 @@ docker compose up --build
 
 ```bash
 cd backend && pytest
+```
+
+## API
+
+서버 실행 후 http://localhost:8000/docs 에서 전체 API 설명을 보고 직접 요청을 보내 테스트할 수 있습니다.
+
+### 사람
+
+| 메서드 | 주소 | 설명 |
+|---|---|---|
+| GET | `/api/persons` | 사람 목록 (이름순) |
+| POST | `/api/persons` | 사람 추가 |
+| GET | `/api/persons/{id}` | 사람 상세 (만남 횟수 `meeting_count`, 마지막 만남 `last_met_at` 포함) |
+| PATCH | `/api/persons/{id}` | 사람 정보 수정 (보낸 항목만 변경) |
+| DELETE | `/api/persons/{id}` | 사람 삭제 |
+
+```json
+// POST /api/persons
+{ "name": "김철수", "relation": "대학 동기", "birthday": "2003-03-14", "contact_cycle_days": 30, "note": null }
+```
+
+### 만남 기록
+
+| 메서드 | 주소 | 설명 |
+|---|---|---|
+| GET | `/api/meetings` | 만남 목록 (최신순), `?person_id=1`로 특정 사람만 |
+| POST | `/api/meetings` | 만남 추가 (`person_ids`에 함께한 사람 1명 이상) |
+| GET | `/api/meetings/{id}` | 만남 상세 |
+| PATCH | `/api/meetings/{id}` | 만남 수정 (보낸 항목만 변경) |
+| DELETE | `/api/meetings/{id}` | 만남 삭제 |
+
+```json
+// POST /api/meetings
+{
+  "met_at": "2026-10-20T18:30:00",
+  "place_name": "숭실대 정문",
+  "latitude": 37.4963,
+  "longitude": 126.9575,
+  "memo": "요즘 클라이밍에 빠졌다고 함",
+  "person_ids": [1, 2]
+}
+```
+
+`place_name`이 `null`이면 장소 미지정, 위도·경도는 없으면 생략할 수 있습니다.
+
+### 사진
+
+| 메서드 | 주소 | 설명 |
+|---|---|---|
+| POST | `/api/photos` | 사진 업로드 (`file`, 20MB 이하, HEIC 지원) → 촬영 시각 `taken_at`, 위도·경도, `photo_path` 반환 |
+| GET | `/api/photos/{photo_path}` | 저장된 사진 (WebP, 위치 정보 제거됨) |
+
+EXIF가 없는 사진은 `taken_at`, 위도·경도가 `null`이므로 직접 입력합니다. 만남에 사진을 붙일 때는 받은 `photo_path`를 `POST /api/meetings`에 함께 보냅니다.
+
+### 장소 (카카오 로컬 API)
+
+| 메서드 | 주소 | 설명 |
+|---|---|---|
+| GET | `/api/places/nearby?lat=&lon=` | 좌표의 주소와 주변 장소 후보 (가까운 순) |
+| GET | `/api/places/search?query=` | 키워드 장소 검색 (`lat`, `lon`을 주면 가까운 순) |
+
+`.env`에 `KAKAO_REST_KEY`가 있어야 합니다.
+
+### 연락 알림
+
+| 메서드 | 주소 | 설명 |
+|---|---|---|
+| GET | `/api/reminders?ratio=1.5` | 평소 주기의 `ratio`배를 넘겨 만나지 못한 사람 (오래 못 본 순) |
+
+평소 주기(`usual_cycle_days`)는 만남 간격의 평균이고, 만난 날이 3일 미만이면 사용자가 지정한 `contact_cycle_days`를 씁니다. 사람 조회 결과에 `days_since_last_met`, `overdue_ratio`, `needs_contact`도 함께 나옵니다.
+
+### 메모 분류 (AI)
+
+| 메서드 | 주소 | 설명 |
+|---|---|---|
+| POST | `/api/meetings/{id}/classify` | 만남 메모를 AI로 분류해 사람별 카드에 저장 (다시 실행하면 새로 분류, 20초 안팎 소요) |
+| GET | `/api/persons/{id}/card` | 사람별 카드: 관심사, 추천받은 내용, 다음에 물어볼 내용, 기념일 |
+| PATCH | `/api/memo-items/{id}` | 분류 결과 수정 |
+| DELETE | `/api/memo-items/{id}` | 분류 결과 삭제 |
+
+메모 분류를 쓰려면 [Ollama](https://ollama.com)를 설치하고 모델을 받아둡니다. 메모는 내 컴퓨터의 Ollama로만 전송됩니다.
+
+```bash
+ollama pull qwen3:8b
+ollama serve
 ```
 
 ## 프로젝트 구조
