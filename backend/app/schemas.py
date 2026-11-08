@@ -8,7 +8,7 @@ class PersonBase(BaseModel):
     name: str = Field(min_length=1, max_length=50)
     relation: str | None = None
     birthday: date | None = None
-    contact_cycle_days: int | None = Field(default=None, ge=1)
+    contact_cycle_days: int | None = Field(default=30, ge=1)
     note: str | None = None
 
 
@@ -29,6 +29,7 @@ class PersonOut(PersonBase):
 
     id: int
     created_at: datetime
+    deleted_at: datetime | None = None
     last_met_at: datetime | None = None
     meeting_count: int = 0
     # 맞춤형 연락 알림 (app/contact.py 참고)
