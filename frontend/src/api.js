@@ -79,6 +79,10 @@ export function createMeeting(meeting) {
   return request('/api/meetings', { method: 'POST', json: meeting });
 }
 
+export function updateMeeting(meetingId, meeting) {
+  return request(`/api/meetings/${meetingId}`, { method: 'PATCH', json: meeting });
+}
+
 export function deleteMeeting(meetingId) {
   return request(`/api/meetings/${meetingId}`, { method: 'DELETE' });
 }

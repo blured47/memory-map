@@ -49,7 +49,14 @@ function sortGroups(keys, order) {
 }
 
 // iOS 는 Modal 을 겹쳐 띄울 수 없어 친구 화면과 만남 상세도 이 시트 안에서 바꿔 보여준다
-export default function PersonManagerSheet({ visible, onClose, onPersonsChanged, meetings, onMeetingDeleted }) {
+export default function PersonManagerSheet({
+  visible,
+  onClose,
+  onPersonsChanged,
+  meetings,
+  onMeetingDeleted,
+  onMeetingUpdated,
+}) {
   const insets = useSafeAreaInsets();
   const [tab, setTab] = useState('list'); // 'list' | 'trash'
   const [persons, setPersons] = useState([]);
@@ -228,6 +235,11 @@ export default function PersonManagerSheet({ visible, onClose, onPersonsChanged,
     onPersonsChanged?.();
   };
 
+  const handleMeetingUpdated = (updated) => {
+    onMeetingUpdated(updated);
+    loadData({ quiet: true }); // 함께한 사람·날짜가 바뀌면 만남 횟수·마지막 만남도 바뀐다
+  };
+
   const handleMeetingDeleted = (id) => {
     setMeetingId(null);
     onMeetingDeleted(id);
@@ -403,6 +415,7 @@ export default function PersonManagerSheet({ visible, onClose, onPersonsChanged,
           onClose={() => setMeetingId(null)}
           closeLabel="뒤로"
           onDeleted={handleMeetingDeleted}
+          onUpdated={handleMeetingUpdated}
         />
       </View>
     );

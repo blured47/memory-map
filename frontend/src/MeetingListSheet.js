@@ -11,11 +11,11 @@ import {
   TextInput,
   View,
 } from 'react-native';
-import DateTimePicker from '@react-native-community/datetimepicker';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
 
+import DateTimeField from './DateTimeField';
 import { MeetingDetail } from './MeetingCard';
-import { formatDate, formatDateTime, toDateValue } from './datetime';
+import { formatDateTime, parseLocalIso, toDateValue } from './datetime';
 import { colors } from './theme';
 
 const PERIODS = [
@@ -94,46 +94,6 @@ function peopleInMeetings(meetings) {
   return [...counts.values()].sort((a, b) => b.count - a.count || a.name.localeCompare(b.name));
 }
 
-// "2026-10-20" → Date (기기 현지 자정)
-function parseDateValue(value) {
-  const [year, month, day] = value.split('-').map(Number);
-  return new Date(year, month - 1, day);
-}
-
-// iOS 는 누르면 달력이 뜨는 날짜 버튼, Android 는 버튼을 누르면 달력 대화상자
-function DateField({ value, onChange, minimumDate, maximumDate }) {
-  const [open, setOpen] = useState(false);
-  const date = parseDateValue(value);
-  const handle = (event, picked) => {
-    setOpen(false);
-    if (event.type === 'set' && picked) onChange(toDateValue(picked));
-  };
-
-  if (Platform.OS === 'ios') {
-    return (
-      <DateTimePicker
-        value={date}
-        mode="date"
-        display="compact"
-        locale="ko-KR"
-        minimumDate={minimumDate}
-        maximumDate={maximumDate}
-        onChange={handle}
-      />
-    );
-  }
-  return (
-    <>
-      <Pressable style={styles.dateButton} onPress={() => setOpen(true)}>
-        <Text style={styles.dateButtonText}>{formatDate(value)}</Text>
-      </Pressable>
-      {open && (
-        <DateTimePicker value={date} mode="date" minimumDate={minimumDate} maximumDate={maximumDate} onChange={handle} />
-      )}
-    </>
-  );
-}
-
 function Chip({ label, active, onPress }) {
   return (
     <Pressable style={[styles.chip, active && styles.chipActive]} onPress={onPress}>
@@ -144,7 +104,7 @@ function Chip({ label, active, onPress }) {
 
 // 위치가 없어 지도에 안 나오는 만남까지 모두 보여주는 목록.
 // iOS 는 Modal 을 나란히 겹쳐 띄울 수 없어 상세 내용도 이 시트 안에서 보여준다
-export default function MeetingListSheet({ visible, onClose, meetings, onDeleted }) {
+export default function MeetingListSheet({ visible, onClose, meetings, onDeleted, onUpdated }) {
   const insets = useSafeAreaInsets();
   const [selectedId, setSelectedId] = useState(null);
   const [filter, setFilter] = useState(INITIAL_FILTER);
@@ -183,6 +143,7 @@ export default function MeetingListSheet({ visible, onClose, meetings, onDeleted
               meeting={selected}
               onClose={() => setSelectedId(null)}
               closeLabel="목록"
+              onUpdated={onUpdated}
               onDeleted={(id) => {
                 setSelectedId(null);
                 onDeleted(id);
@@ -215,16 +176,18 @@ export default function MeetingListSheet({ visible, onClose, meetings, onDeleted
               </ScrollView>
               {filter.period === 'custom' && (
                 <View style={styles.dateRow}>
-                  <DateField
-                    value={filter.from}
-                    maximumDate={parseDateValue(filter.to)}
-                    onChange={(from) => update({ from })}
+                  <DateTimeField
+                    mode="date"
+                    value={parseLocalIso(filter.from)}
+                    maximumDate={parseLocalIso(filter.to)}
+                    onChange={(d) => update({ from: toDateValue(d) })}
                   />
                   <Text style={styles.dateDash}>~</Text>
-                  <DateField
-                    value={filter.to}
-                    minimumDate={parseDateValue(filter.from)}
-                    onChange={(to) => update({ to })}
+                  <DateTimeField
+                    mode="date"
+                    value={parseLocalIso(filter.to)}
+                    minimumDate={parseLocalIso(filter.from)}
+                    onChange={(d) => update({ to: toDateValue(d) })}
                   />
                 </View>
               )}
@@ -326,8 +289,6 @@ const styles = StyleSheet.create({
   chipText: { fontSize: 14, fontWeight: '500', color: colors.textSub },
   chipTextActive: { color: colors.white, fontWeight: '600' },
   dateRow: { flexDirection: 'row', alignItems: 'center', marginTop: 8 },
-  dateButton: { backgroundColor: colors.grey100, borderRadius: 12, paddingHorizontal: 14, paddingVertical: 10 },
-  dateButtonText: { fontSize: 15, color: colors.text },
   dateDash: { marginHorizontal: 8, color: colors.textTertiary },
   summary: { flexDirection: 'row', justifyContent: 'space-between', alignItems: 'center', marginTop: 14, marginBottom: 4 },
   summaryText: { fontSize: 13, color: colors.textSub },

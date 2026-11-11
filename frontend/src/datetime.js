@@ -15,19 +15,10 @@ export function formatDate(value) {
   return m ? `${m[1]}.${m[2]}.${m[3]}` : '-';
 }
 
-// "2026-10-20T18:30:00" → "2026-10-20 18:30" (입력칸에 보여줄 값)
-export function toInputValue(value) {
-  return (value ?? '').slice(0, 16).replace('T', ' ');
-}
-
-// "2026-10-20 18:30" → "2026-10-20T18:30:00". 없는 날짜·시각이면 null
-export function fromInputValue(text) {
-  const m = /^(\d{4})-(\d{2})-(\d{2}) (\d{2}):(\d{2})$/.exec(text.trim());
-  if (!m) return null;
-  const [year, month, day, hour, minute] = m.slice(1).map(Number);
-  const d = new Date(year, month - 1, day);
-  if (d.getMonth() !== month - 1 || d.getDate() !== day || hour > 23 || minute > 59) return null;
-  return `${m[1]}-${m[2]}-${m[3]}T${m[4]}:${m[5]}:00`;
+// "2026-10-20T18:30:00" 또는 "2026-10-20" → Date (기기 현지 시각)
+export function parseLocalIso(value) {
+  const [year, month, day, hour = 0, minute = 0] = (value.match(/\d+/g) ?? []).map(Number);
+  return new Date(year, month - 1, day, hour, minute);
 }
 
 // 지금 시각을 백엔드 형식으로

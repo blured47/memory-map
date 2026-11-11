@@ -119,6 +119,12 @@ function MemoryMap() {
     }
   };
 
+  const handleUpdated = (meeting) => {
+    setMeetings((list) => list.map((m) => (m.id === meeting.id ? meeting : m)));
+    setSelectedMeeting((m) => (m?.id === meeting.id ? meeting : m));
+    load(); // 날짜·사람이 바뀌면 연락 알림도 달라진다
+  };
+
   const handleDeleted = (id) => {
     setSelectedMeeting(null);
     setMeetings((list) => list.filter((m) => m.id !== id));
@@ -206,6 +212,7 @@ function MemoryMap() {
         onPersonsChanged={handlePersonsChanged}
         meetings={meetings}
         onMeetingDeleted={handleDeleted}
+        onMeetingUpdated={handleUpdated}
       />
       <ReminderSheet
         visible={sheetOpen}
@@ -222,9 +229,15 @@ function MemoryMap() {
         onClose={() => setMeetingListOpen(false)}
         meetings={meetings}
         onDeleted={handleDeleted}
+        onUpdated={handleUpdated}
       />
       <PhotoRecordSheet draft={draft} onClose={() => setDraft(null)} onSaved={handleSaved} />
-      <MeetingCard meeting={selectedMeeting} onClose={() => setSelectedMeeting(null)} onDeleted={handleDeleted} />
+      <MeetingCard
+        meeting={selectedMeeting}
+        onClose={() => setSelectedMeeting(null)}
+        onDeleted={handleDeleted}
+        onUpdated={handleUpdated}
+      />
       <StatusBar style="dark" />
     </View>
   );
