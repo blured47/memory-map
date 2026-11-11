@@ -14,8 +14,10 @@ import {
 } from 'react-native';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
 
-import { createMeeting, createPerson, fetchPersons, searchPlaces, uploadPhoto } from './api';
+import { createMeeting, createPerson, fetchNearby, fetchPersons, searchPlaces, uploadPhoto } from './api';
 import { fromInputValue, nowLocalIso, toInputValue } from './datetime';
+import { readLibraryInfo } from './photoLibrary';
+import { colors } from './theme';
 
 const SEARCH_DELAY_MS = 300;
 
@@ -34,6 +36,8 @@ export default function PhotoRecordSheet({ draft, onClose, onSaved }) {
   const [placeName, setPlaceName] = useState('');
   const [searching, setSearching] = useState(false);
   const [places, setPlaces] = useState([]);
+  const [placeError, setPlaceError] = useState(null);
+  const [nearby, setNearby] = useState(null); // 사진 위치 주변 { address, building_name, places }
   const [pickedPlace, setPickedPlace] = useState(null);
   const [memo, setMemo] = useState('');
   const [saving, setSaving] = useState(false);
@@ -51,12 +55,23 @@ export default function PhotoRecordSheet({ draft, onClose, onSaved }) {
     setSearching(false);
     setPlaces([]);
     setPickedPlace(null);
+    setNearby(null);
     setMemo('');
     setError(null);
 
     if (draft.asset) {
-      uploadPhoto(draft.asset)
-        .then((p) => {
+      const asset = draft.asset;
+      uploadPhoto(asset)
+        .then(async (uploaded) => {
+          let p = { ...uploaded, locationSource: uploaded.latitude != null ? 'file' : null };
+          // 파일에서 못 읽은 값은 사진 보관함에서 채운다
+          if (p.latitude == null || !p.taken_at) {
+            const lib = await readLibraryInfo(asset.assetId);
+            if (lib?.latitude != null && p.latitude == null) {
+              p = { ...p, latitude: lib.latitude, longitude: lib.longitude, locationSource: 'library' };
+            }
+            if (lib?.taken_at && !p.taken_at) p = { ...p, taken_at: lib.taken_at };
+          }
           if (cancelled) return;
           setPhoto(p);
           if (p.taken_at) setMetAt(toInputValue(p.taken_at));
@@ -77,19 +92,46 @@ export default function PhotoRecordSheet({ draft, onClose, onSaved }) {
     const query = placeName.trim();
     if (!searching || !query) {
       setPlaces([]);
+      setPlaceError(null);
       return;
     }
     let cancelled = false;
     const timer = setTimeout(() => {
       searchPlaces(query, photo?.latitude, photo?.longitude)
-        .then((list) => !cancelled && setPlaces(list))
-        .catch(() => !cancelled && setPlaces([])); // 검색이 안 돼도 이름은 직접 적을 수 있다
+        .then((list) => {
+          if (cancelled) return;
+          setPlaces(list);
+          setPlaceError(list.length ? null : '검색 결과가 없어요. 입력한 이름 그대로 저장할 수 있어요');
+        })
+        .catch((e) => {
+          // 검색이 안 돼도 이름은 직접 적을 수 있다
+          if (cancelled) return;
+          setPlaces([]);
+          setPlaceError(e.message);
+        });
     }, SEARCH_DELAY_MS);
     return () => {
       cancelled = true;
       clearTimeout(timer);
     };
   }, [placeName, searching, photo]);
+
+  // 사진 위치가 있으면 주변 장소를 후보로 보여주고, 장소 칸이 비어 있으면 건물 이름이나 주소로 채운다
+  useEffect(() => {
+    if (photo?.latitude == null) return;
+    let cancelled = false;
+    fetchNearby(photo.latitude, photo.longitude)
+      .then((result) => {
+        if (cancelled) return;
+        setNearby(result);
+        const guess = result.building_name || result.address;
+        if (guess) setPlaceName((name) => name || guess);
+      })
+      .catch(() => {}); // 카카오 키가 없어도 좌표로는 지도에 표시된다
+    return () => {
+      cancelled = true;
+    };
+  }, [photo]);
 
   const changePlaceName = (text) => {
     setPlaceName(text);
@@ -185,8 +227,14 @@ export default function PhotoRecordSheet({ draft, onClose, onSaved }) {
                     촬영 시각: {photo.taken_at ? '사진에서 읽음' : '정보 없음 (아래에서 입력)'}
                   </Text>
                   <Text style={styles.info}>
-                    촬영 위치: {photo.latitude != null ? '사진에서 읽음' : '정보 없음 (장소를 검색해 고를 수 있어요)'}
+                    촬영 위치:{' '}
+                    {photo.latitude == null
+                      ? '정보 없음 (장소를 검색해 고를 수 있어요)'
+                      : photo.locationSource === 'library'
+                        ? '사진 보관함에서 읽음'
+                        : '사진에서 읽음'}
                   </Text>
+                  {nearby?.address ? <Text style={styles.info}>{nearby.address}</Text> : null}
                 </View>
               ))}
 
@@ -228,17 +276,35 @@ export default function PhotoRecordSheet({ draft, onClose, onSaved }) {
             <Text style={styles.label}>장소</Text>
             <TextInput
               style={styles.input}
-              placeholder="장소 검색 (예: 학교 앞 카페)"
+              placeholder="장소나 동네 (예: 양천구, 인계동 카페)"
               value={placeName}
               onChangeText={changePlaceName}
               autoCorrect={false}
             />
             {places.map((place) => (
               <Pressable key={place.kakao_id} style={styles.placeItem} onPress={() => pickPlace(place)}>
-                <Text style={styles.placeName}>{place.name}</Text>
+                <Text style={styles.placeName}>
+                  {place.name}
+                  {place.category ? <Text style={styles.placeCategory}>  {place.category}</Text> : null}
+                </Text>
                 {place.address ? <Text style={styles.placeAddress}>{place.address}</Text> : null}
               </Pressable>
             ))}
+            {placeError ? <Text style={styles.placeError}>{placeError}</Text> : null}
+            {!searching && !pickedPlace && nearby?.places.length > 0 && (
+              <>
+                <Text style={styles.nearbyLabel}>사진 찍은 곳 근처</Text>
+                {nearby.places.map((place) => (
+                  <Pressable key={place.kakao_id} style={styles.placeItem} onPress={() => pickPlace(place)}>
+                    <Text style={styles.placeName}>
+                      {place.name}
+                      {place.category ? <Text style={styles.placeCategory}>  {place.category}</Text> : null}
+                    </Text>
+                    {place.distance != null ? <Text style={styles.placeAddress}>{place.distance}m</Text> : null}
+                  </Pressable>
+                ))}
+              </>
+            )}
             {!waitingForPhoto && (
               <Text style={styles.hint}>
                 {hasLocation ? '지도에 표시됩니다' : '위치가 없으면 지도에는 표시되지 않고 만남 기록에만 남습니다'}
@@ -271,32 +337,35 @@ export default function PhotoRecordSheet({ draft, onClose, onSaved }) {
 }
 
 const styles = StyleSheet.create({
-  backdrop: { flex: 1, backgroundColor: 'rgba(0,0,0,0.3)' },
-  sheet: { maxHeight: '90%', flexShrink: 1, backgroundColor: '#fff', borderTopLeftRadius: 16, borderTopRightRadius: 16, paddingHorizontal: 16, paddingTop: 16 },
+  backdrop: { flex: 1, backgroundColor: colors.dim },
+  sheet: { maxHeight: '90%', flexShrink: 1, backgroundColor: colors.white, borderTopLeftRadius: 24, borderTopRightRadius: 24, paddingHorizontal: 20, paddingTop: 24 },
   header: { flexDirection: 'row', justifyContent: 'space-between', alignItems: 'center', marginBottom: 12 },
-  title: { fontSize: 18, fontWeight: '700' },
-  close: { fontSize: 15, color: '#2563eb' },
-  preview: { width: '100%', aspectRatio: 4 / 3, borderRadius: 12, backgroundColor: '#e5e7eb' },
+  title: { fontSize: 20, fontWeight: '700', color: colors.text },
+  close: { fontSize: 15, fontWeight: '600', color: colors.textTertiary },
+  preview: { width: '100%', aspectRatio: 4 / 3, borderRadius: 16, backgroundColor: colors.border },
   row: { flexDirection: 'row', alignItems: 'center', marginTop: 12 },
   flex: { flex: 1 },
-  exifBox: { marginTop: 12, padding: 12, borderRadius: 8, backgroundColor: '#f3f4f6' },
-  info: { fontSize: 14, color: '#374151', lineHeight: 20 },
-  label: { fontSize: 14, fontWeight: '600', marginTop: 16, marginBottom: 6 },
+  exifBox: { marginTop: 12, padding: 14, borderRadius: 12, backgroundColor: colors.grey100 },
+  info: { fontSize: 14, color: colors.textSub, lineHeight: 20 },
+  label: { fontSize: 14, fontWeight: '600', color: colors.textSub, marginTop: 20, marginBottom: 8 },
   chips: { flexDirection: 'row', flexWrap: 'wrap', gap: 8 },
-  chip: { paddingHorizontal: 12, paddingVertical: 6, borderRadius: 16, borderWidth: 1, borderColor: '#d1d5db' },
-  chipActive: { backgroundColor: '#2563eb', borderColor: '#2563eb' },
-  chipText: { fontSize: 14, color: '#374151' },
-  chipTextActive: { color: '#fff', fontWeight: '600' },
-  input: { borderWidth: 1, borderColor: '#d1d5db', borderRadius: 8, paddingHorizontal: 12, paddingVertical: 8, fontSize: 15 },
+  chip: { paddingHorizontal: 14, paddingVertical: 8, borderRadius: 18, backgroundColor: colors.grey100 },
+  chipActive: { backgroundColor: colors.primary },
+  chipText: { fontSize: 14, fontWeight: '500', color: colors.textSub },
+  chipTextActive: { color: colors.white, fontWeight: '600' },
+  input: { backgroundColor: colors.grey100, borderRadius: 12, paddingHorizontal: 14, paddingVertical: 12, fontSize: 16, color: colors.text },
   memo: { minHeight: 80, textAlignVertical: 'top' },
-  placeItem: { paddingVertical: 10, paddingHorizontal: 4, borderBottomWidth: StyleSheet.hairlineWidth, borderBottomColor: '#e5e7eb' },
-  placeName: { fontSize: 14, fontWeight: '600', color: '#111827' },
-  placeAddress: { fontSize: 12, color: '#6b7280', marginTop: 2 },
-  hint: { fontSize: 12, color: '#6b7280', marginTop: 6 },
-  smallButton: { marginLeft: 8, paddingHorizontal: 14, paddingVertical: 10, borderRadius: 8, backgroundColor: '#f3f4f6' },
-  smallButtonText: { fontSize: 14, color: '#111827' },
-  errorText: { fontSize: 14, color: '#b91c1c', marginTop: 12 },
-  saveButton: { marginTop: 20, paddingVertical: 14, borderRadius: 10, backgroundColor: '#2563eb', alignItems: 'center' },
-  saveButtonDisabled: { backgroundColor: '#93c5fd' },
-  saveButtonText: { color: '#fff', fontSize: 16, fontWeight: '700' },
+  placeItem: { paddingVertical: 12, paddingHorizontal: 4 },
+  placeName: { fontSize: 15, fontWeight: '600', color: colors.text },
+  placeCategory: { fontSize: 12, fontWeight: '400', color: colors.textTertiary },
+  nearbyLabel: { fontSize: 13, fontWeight: '600', color: colors.textTertiary, marginTop: 12 },
+  placeError: { fontSize: 12, color: colors.warning, marginTop: 6 },
+  placeAddress: { fontSize: 12, color: colors.textTertiary, marginTop: 2 },
+  hint: { fontSize: 12, color: colors.textTertiary, marginTop: 6 },
+  smallButton: { marginLeft: 8, paddingHorizontal: 16, paddingVertical: 13, borderRadius: 12, backgroundColor: colors.primaryBg },
+  smallButtonText: { fontSize: 15, fontWeight: '600', color: colors.primary },
+  errorText: { fontSize: 14, color: colors.danger, marginTop: 12 },
+  saveButton: { marginTop: 24, paddingVertical: 17, borderRadius: 16, backgroundColor: colors.primary, alignItems: 'center' },
+  saveButtonDisabled: { backgroundColor: colors.primaryDisabled },
+  saveButtonText: { color: colors.white, fontSize: 17, fontWeight: '700' },
 });

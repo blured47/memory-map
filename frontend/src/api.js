@@ -1,3 +1,5 @@
+import { File } from 'expo-file-system';
+
 // 백엔드 주소. 폰에서 접속하므로 localhost 가 아닌 PC의 LAN IP 를 써야 합니다. (예: http://192.168.0.10:8000)
 export const API_URL = process.env.EXPO_PUBLIC_API_URL?.replace(/\/+$/, '');
 
@@ -81,6 +83,11 @@ export function deleteMeeting(meetingId) {
   return request(`/api/meetings/${meetingId}`, { method: 'DELETE' });
 }
 
+// 사진 위치 주변 장소 후보 → { address, building_name, places: [...] }
+export function fetchNearby(lat, lon) {
+  return request(`/api/places/nearby?lat=${lat}&lon=${lon}&limit=5`);
+}
+
 // 카카오 로컬 API 키워드 검색 (위치를 주면 가까운 순) → [{ name, address, latitude, longitude, ... }]
 export function searchPlaces(query, lat, lon) {
   const params = new URLSearchParams({ query, limit: '8' });
@@ -92,12 +99,9 @@ export function searchPlaces(query, lat, lon) {
 }
 
 // 사진을 올리면 서버가 EXIF 에서 촬영 시각·위치를 읽어 돌려준다 → { photo_path, url, taken_at, latitude, longitude }
+// Expo 의 fetch 는 React Native 식 { uri, name, type } 파트를 받지 않아 파일 객체로 붙인다
 export function uploadPhoto(asset) {
   const form = new FormData();
-  form.append('file', {
-    uri: asset.uri,
-    name: asset.fileName ?? 'photo.jpg',
-    type: asset.mimeType ?? 'image/jpeg',
-  });
+  form.append('file', new File(asset.uri));
   return request('/api/photos', { method: 'POST', body: form, timeout: UPLOAD_TIMEOUT_MS });
 }
