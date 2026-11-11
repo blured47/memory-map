@@ -1,8 +1,6 @@
 from fastapi import FastAPI
-from fastapi.staticfiles import StaticFiles
 from sqlalchemy import text
 
-from .config import FRONTEND_DIR, KAKAO_JS_KEY
 from .db import Base, engine
 from .routers import meetings, memos, persons, photos, places
 
@@ -23,12 +21,3 @@ app.include_router(meetings.router)
 app.include_router(photos.router)
 app.include_router(places.router)
 app.include_router(memos.router)
-
-
-@app.get("/api/config")
-def client_config():
-    # 프론트에서 카카오맵 SDK를 불러올 때 쓰는 JS 키 (JS 키는 도메인 제한으로 보호됨)
-    return {"kakaoJsKey": KAKAO_JS_KEY}
-
-
-app.mount("/", StaticFiles(directory=FRONTEND_DIR, html=True), name="frontend")
