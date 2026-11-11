@@ -32,6 +32,15 @@ export function fromInputValue(text) {
 
 // 지금 시각을 백엔드 형식으로
 export function nowLocalIso() {
-  const d = new Date();
+  return toLocalIso(new Date());
+}
+
+// Date → 백엔드 형식 ("2026-10-20T18:30:00", 기기 현지 시각)
+export function toLocalIso(d) {
   return `${d.getFullYear()}-${pad(d.getMonth() + 1)}-${pad(d.getDate())}T${pad(d.getHours())}:${pad(d.getMinutes())}:${pad(d.getSeconds())}`;
+}
+
+// Date → "2026-10-20" (기기 현지 날짜)
+export function toDateValue(d) {
+  return `${d.getFullYear()}-${pad(d.getMonth() + 1)}-${pad(d.getDate())}`;
 }
