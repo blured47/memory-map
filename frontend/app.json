@@ -6,7 +6,14 @@
     "orientation": "portrait",
     "userInterfaceStyle": "light",
     "plugins": [
-      ["expo-build-properties", { "android": { "usesCleartextTraffic": true } }],
+      [
+        "expo-build-properties",
+        {
+          "android": {
+            "usesCleartextTraffic": true
+          }
+        }
+      ],
       [
         "expo-image-picker",
         {
@@ -14,20 +21,47 @@
           "cameraPermission": false,
           "microphonePermission": false
         }
+      ],
+      "@react-native-community/datetimepicker",
+      [
+        "expo-location",
+        {
+          "locationWhenInUsePermission": "지도에서 내 위치를 보여주기 위해 현재 위치를 사용합니다."
+        }
+      ],
+      "expo-font",
+      [
+        "expo-media-library",
+        {
+          "photosPermission": "사진에 저장된 촬영 위치와 시각을 읽기 위해 사진 보관함에 접근합니다.",
+          "savePhotosPermission": false,
+          "isAccessMediaLocationEnabled": true
+        }
       ]
     ],
     "ios": {
       "bundleIdentifier": "io.github.blured47.memorymap",
       "supportsTablet": false,
-      "config": { "usesNonExemptEncryption": false },
+      "config": {
+        "usesNonExemptEncryption": false
+      },
       "infoPlist": {
         "NSLocalNetworkUsageDescription": "같은 네트워크에 있는 Memory Map 서버에 연결합니다.",
         "NSAppTransportSecurity": {
           "NSAllowsLocalNetworking": true,
           "NSExceptionDomains": {
-            "daumcdn.net": { "NSIncludesSubdomains": true, "NSExceptionAllowsInsecureHTTPLoads": true },
-            "kakao.com": { "NSIncludesSubdomains": true, "NSExceptionAllowsInsecureHTTPLoads": true },
-            "kakaocdn.net": { "NSIncludesSubdomains": true, "NSExceptionAllowsInsecureHTTPLoads": true }
+            "daumcdn.net": {
+              "NSIncludesSubdomains": true,
+              "NSExceptionAllowsInsecureHTTPLoads": true
+            },
+            "kakao.com": {
+              "NSIncludesSubdomains": true,
+              "NSExceptionAllowsInsecureHTTPLoads": true
+            },
+            "kakaocdn.net": {
+              "NSIncludesSubdomains": true,
+              "NSExceptionAllowsInsecureHTTPLoads": true
+            }
           }
         }
       }
