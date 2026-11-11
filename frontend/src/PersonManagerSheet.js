@@ -1,3 +1,4 @@
+import AsyncStorage from '@react-native-async-storage/async-storage';
 import { useEffect, useMemo, useState } from 'react';
 import {
   ActivityIndicator,
@@ -7,12 +8,11 @@ import {
   Modal,
   Platform,
   Pressable,
-  ScrollView,
   StyleSheet,
   Text,
-  TextInput,
   View,
 } from 'react-native';
+import { Ionicons } from '@expo/vector-icons';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
 
 import {
@@ -25,8 +25,31 @@ import {
   updatePerson,
 } from './api';
 import { formatDate } from './datetime';
+import { MeetingDetail } from './MeetingCard';
+import PersonDetail from './PersonDetail';
+import PersonForm from './PersonForm';
+import { colors, shadow } from './theme';
 
-export default function PersonManagerSheet({ visible, onClose, onPersonsChanged }) {
+const UNASSIGNED = '미지정';
+// 그룹 순서는 이 기기에만 저장한다
+const GROUP_ORDER_KEY = 'friendGroupOrder';
+
+// 사용자가 정한 순서대로, 순서가 없는 그룹은 그 뒤에 가나다순 ('미지정'은 맨 뒤)
+function sortGroups(keys, order) {
+  const rank = (key) => {
+    const i = order.indexOf(key);
+    return i === -1 ? Infinity : i;
+  };
+  return [...keys].sort((a, b) => {
+    if (rank(a) !== rank(b)) return rank(a) < rank(b) ? -1 : 1;
+    if (a === UNASSIGNED) return 1;
+    if (b === UNASSIGNED) return -1;
+    return a.localeCompare(b, 'ko');
+  });
+}
+
+// iOS 는 Modal 을 겹쳐 띄울 수 없어 친구 화면과 만남 상세도 이 시트 안에서 바꿔 보여준다
+export default function PersonManagerSheet({ visible, onClose, onPersonsChanged, meetings, onMeetingDeleted }) {
   const insets = useSafeAreaInsets();
   const [tab, setTab] = useState('list'); // 'list' | 'trash'
   const [persons, setPersons] = useState([]);
@@ -34,17 +57,22 @@ export default function PersonManagerSheet({ visible, onClose, onPersonsChanged 
   const [loading, setLoading] = useState(false);
   const [collapsedRelations, setCollapsedRelations] = useState(new Set());
   const [sortMode, setSortMode] = useState('name'); // 'name' | 'count_desc'
-
-  // 등록·수정 폼 상태 (editingPerson 이 있으면 수정)
+  const [groupOrder, setGroupOrder] = useState([]);
+  const [reordering, setReordering] = useState(false);
   const [showAddForm, setShowAddForm] = useState(false);
-  const [editingPerson, setEditingPerson] = useState(null);
-  const [newName, setNewName] = useState('');
-  const [newRelation, setNewRelation] = useState('');
-  const [newCycleDays, setNewCycleDays] = useState('30');
-  const [submitting, setSubmitting] = useState(false);
 
-  const loadData = async () => {
-    setLoading(true);
+  const [personId, setPersonId] = useState(null); // 보고 있는 친구
+  const [meetingId, setMeetingId] = useState(null); // 친구 화면에서 연 만남
+
+  const person = persons.find((p) => p.id === personId);
+  const meeting = meetings.find((m) => m.id === meetingId);
+  const personMeetings = useMemo(
+    () => meetings.filter((m) => m.people.some((p) => p.id === personId)),
+    [meetings, personId],
+  );
+
+  const loadData = async ({ quiet = false } = {}) => {
+    if (!quiet) setLoading(true);
     try {
       const [pList, dList] = await Promise.all([fetchPersons(), fetchDeletedPersons()]);
       setPersons(pList);
@@ -62,20 +90,17 @@ export default function PersonManagerSheet({ visible, onClose, onPersonsChanged 
     }
   }, [visible]);
 
-  // 기존 등록된 모든 관계 목록 (추천 태그용)
-  const existingRelations = useMemo(() => {
-    const set = new Set();
-    persons.forEach((p) => {
-      if (p.relation && p.relation.trim()) set.add(p.relation.trim());
-    });
-    return Array.from(set);
-  }, [persons]);
+  useEffect(() => {
+    AsyncStorage.getItem(GROUP_ORDER_KEY)
+      .then((saved) => saved && setGroupOrder(JSON.parse(saved)))
+      .catch(() => {}); // 저장된 순서가 없거나 읽지 못하면 기본 순서
+  }, []);
 
   // 관계별 클러스터링 및 정렬
   const clusteredPersons = useMemo(() => {
     const groups = {};
     persons.forEach((p) => {
-      const rel = p.relation?.trim() || '미지정';
+      const rel = p.relation?.trim() || UNASSIGNED;
       if (!groups[rel]) groups[rel] = [];
       groups[rel].push(p);
     });
@@ -90,18 +115,22 @@ export default function PersonManagerSheet({ visible, onClose, onPersonsChanged 
       });
     });
 
-    // 그룹 순서 정렬 ('미지정'은 항상 맨 뒤로)
-    const sortedKeys = Object.keys(groups).sort((a, b) => {
-      if (a === '미지정') return 1;
-      if (b === '미지정') return -1;
-      return a.localeCompare(b, 'ko');
-    });
-
-    return sortedKeys.map((key) => ({
+    return sortGroups(Object.keys(groups), groupOrder).map((key) => ({
       relation: key,
       data: groups[key],
     }));
-  }, [persons, sortMode]);
+  }, [persons, sortMode, groupOrder]);
+
+  const moveGroup = (index, offset) => {
+    const keys = clusteredPersons.map((c) => c.relation);
+    const target = index + offset;
+    if (target < 0 || target >= keys.length) return;
+    [keys[index], keys[target]] = [keys[target], keys[index]];
+    // 지금 없는 그룹의 순서도 지우지 않고 뒤에 남겨 둔다 (그 관계의 친구를 다시 등록할 때를 위해)
+    const next = [...keys, ...groupOrder.filter((k) => !keys.includes(k))];
+    setGroupOrder(next);
+    AsyncStorage.setItem(GROUP_ORDER_KEY, JSON.stringify(next)).catch(() => {});
+  };
 
   const toggleCollapse = (relation) => {
     setCollapsedRelations((prev) => {
@@ -112,20 +141,23 @@ export default function PersonManagerSheet({ visible, onClose, onPersonsChanged 
     });
   };
 
-  const collapseAll = () => {
-    const all = new Set(clusteredPersons.map((c) => c.relation));
-    setCollapsedRelations(all);
-  };
+  const allCollapsed =
+    clusteredPersons.length > 0 && clusteredPersons.every((c) => collapsedRelations.has(c.relation));
+  const toggleAll = () =>
+    setCollapsedRelations(allCollapsed ? new Set() : new Set(clusteredPersons.map((c) => c.relation)));
 
-  const expandAll = () => {
-    setCollapsedRelations(new Set());
+  const close = () => {
+    setPersonId(null);
+    setMeetingId(null);
+    setReordering(false);
+    onClose();
   };
 
   // 인물 소프트 삭제 (휴지통으로 이동)
-  const handleDeletePerson = (person) => {
+  const handleDeletePerson = (target) => {
     Alert.alert(
       '휴지통으로 이동',
-      `'${person.name}' 님을 휴지통으로 이동하시겠습니까?\n(30일간 보관되며 언제든 복구할 수 있습니다)`,
+      `'${target.name}' 님을 휴지통으로 이동하시겠습니까?\n(30일간 보관되며 언제든 복구할 수 있습니다)`,
       [
         { text: '취소', style: 'cancel' },
         {
@@ -133,7 +165,8 @@ export default function PersonManagerSheet({ visible, onClose, onPersonsChanged 
           style: 'destructive',
           onPress: async () => {
             try {
-              await deletePerson(person.id);
+              await deletePerson(target.id);
+              setPersonId(null);
               await loadData();
               onPersonsChanged?.();
             } catch (e) {
@@ -146,22 +179,22 @@ export default function PersonManagerSheet({ visible, onClose, onPersonsChanged 
   };
 
   // 인물 복구
-  const handleRestorePerson = async (person) => {
+  const handleRestorePerson = async (target) => {
     try {
-      await restorePerson(person.id);
+      await restorePerson(target.id);
       await loadData();
       onPersonsChanged?.();
-      Alert.alert('복구 완료', `'${person.name}' 님이 원래 목록으로 복구되었습니다.`);
+      Alert.alert('복구 완료', `'${target.name}' 님이 원래 목록으로 복구되었습니다.`);
     } catch (e) {
       Alert.alert('복구 실패', e.message);
     }
   };
 
   // 인물 영구 완전 삭제
-  const handlePermanentDelete = (person) => {
+  const handlePermanentDelete = (target) => {
     Alert.alert(
       '영구 완전 삭제',
-      `'${person.name}' 님을 데이터베이스에서 완전히 삭제하시겠습니까?\n이 작업은 되돌릴 수 없습니다.`,
+      `'${target.name}' 님을 데이터베이스에서 완전히 삭제하시겠습니까?\n이 작업은 되돌릴 수 없습니다.`,
       [
         { text: '취소', style: 'cancel' },
         {
@@ -169,7 +202,7 @@ export default function PersonManagerSheet({ visible, onClose, onPersonsChanged 
           style: 'destructive',
           onPress: async () => {
             try {
-              await permanentDeletePerson(person.id);
+              await permanentDeletePerson(target.id);
               await loadData();
               onPersonsChanged?.();
             } catch (e) {
@@ -181,315 +214,267 @@ export default function PersonManagerSheet({ visible, onClose, onPersonsChanged 
     );
   };
 
-  const closeForm = () => {
-    setNewName('');
-    setNewRelation('');
-    setNewCycleDays('30');
-    setEditingPerson(null);
+  const addPerson = async (body) => {
+    await createPersonFull(body);
     setShowAddForm(false);
+    await loadData();
+    onPersonsChanged?.();
+    Alert.alert('완료', '새로운 친구가 등록되었습니다.');
   };
 
-  const startEdit = (person) => {
-    setNewName(person.name);
-    setNewRelation(person.relation ?? '');
-    setNewCycleDays(String(person.contact_cycle_days ?? 30));
-    setEditingPerson(person);
-    setShowAddForm(true);
+  const savePerson = async (body) => {
+    await updatePerson(person.id, body);
+    await loadData({ quiet: true });
+    onPersonsChanged?.();
   };
 
-  // 등록·수정 제출
-  const handleAddPerson = async () => {
-    const trimmedName = newName.trim();
-    if (!trimmedName) {
-      return Alert.alert('입력 확인', '이름을 입력해 주세요.');
-    }
-
-    // 동명이인 검사 (수정 중인 본인은 제외)
-    const trimmedRel = newRelation.trim();
-    const others = persons.filter((p) => p.id !== editingPerson?.id);
-    const duplicateExact = others.find(
-      (p) => p.name.trim() === trimmedName && (p.relation?.trim() || '') === trimmedRel,
-    );
-    if (duplicateExact) {
-      return Alert.alert('저장 불가', '이름과 관계가 완전히 동일한 인물이 이미 존재합니다.');
-    }
-
-    const duplicateNameOnly = others.find((p) => p.name.trim() === trimmedName);
-    if (duplicateNameOnly) {
-      Alert.alert(
-        '동명이인 주의',
-        `'${duplicateNameOnly.relation || '미지정'}'에 이미 같은 이름의 인물이 있습니다. 계속할까요?`,
-        [
-          { text: '취소', style: 'cancel' },
-          { text: '계속', onPress: () => submitNewPerson() },
-        ],
-      );
-      return;
-    }
-
-    submitNewPerson();
+  const handleMeetingDeleted = (id) => {
+    setMeetingId(null);
+    onMeetingDeleted(id);
+    loadData({ quiet: true }); // 만남 횟수·마지막 만남이 바뀐다
   };
 
-  const submitNewPerson = async () => {
-    setSubmitting(true);
-    try {
-      const cycleDays = parseInt(newCycleDays, 10);
-      const body = {
-        name: newName.trim(),
-        relation: newRelation.trim() || null,
-        contact_cycle_days: cycleDays >= 1 ? cycleDays : 30,
-      };
-      const editing = !!editingPerson;
-      if (editing) await updatePerson(editingPerson.id, body);
-      else await createPersonFull(body);
-      closeForm();
-      await loadData();
-      onPersonsChanged?.();
-      Alert.alert('완료', editing ? '정보를 수정했습니다.' : '새로운 사람이 등록되었습니다.');
-    } catch (e) {
-      Alert.alert('저장 실패', e.message);
-    } finally {
-      setSubmitting(false);
-    }
-  };
-
-  return (
-    <Modal visible={visible} transparent animationType="slide" onRequestClose={onClose}>
-      <KeyboardAvoidingView style={styles.flex} behavior={Platform.OS === 'ios' ? 'padding' : undefined}>
-      <Pressable style={styles.backdrop} onPress={onClose} />
-      <View style={[styles.sheet, { paddingBottom: insets.bottom + 8 }]}>
-        {/* 상단 헤더 */}
-        <View style={styles.header}>
-          <Text style={styles.title}>사람 관리</Text>
-          <Pressable onPress={onClose} hitSlop={12}>
-            <Text style={styles.close}>닫기</Text>
+  const renderList = () => (
+    <View style={styles.tabContent}>
+      {/* 툴바: 추가 버튼 + 정렬, 펼치기/접기, 그룹 순서 */}
+      <View style={styles.toolbar}>
+        {reordering ? (
+          <View />
+        ) : (
+          <Pressable
+            style={[styles.btnAdd, showAddForm && styles.btnAddActive]}
+            onPress={() => setShowAddForm(!showAddForm)}
+          >
+            <Text style={styles.btnAddText}>{showAddForm ? '닫기' : '친구 추가'}</Text>
+          </Pressable>
+        )}
+        <View style={styles.toolActions}>
+          {!reordering && (
+            <>
+              <Pressable
+                style={styles.btnTool}
+                onPress={() => setSortMode(sortMode === 'name' ? 'count_desc' : 'name')}
+              >
+                <Text style={styles.btnToolText}>{sortMode === 'name' ? '이름순' : '만남순'}</Text>
+              </Pressable>
+              <Pressable style={styles.btnTool} onPress={toggleAll}>
+                <Text style={styles.btnToolText}>{allCollapsed ? '펼치기' : '접기'}</Text>
+              </Pressable>
+            </>
+          )}
+          <Pressable
+            style={[styles.btnTool, reordering && styles.btnToolActive]}
+            onPress={() => {
+              setReordering(!reordering);
+              setShowAddForm(false);
+            }}
+          >
+            <Text style={[styles.btnToolText, reordering && styles.btnToolTextActive]}>
+              {reordering ? '완료' : '그룹 순서'}
+            </Text>
           </Pressable>
         </View>
+      </View>
 
-        {/* 탭 전환 (사람 목록 vs 휴지통) */}
+      {reordering && <Text style={styles.orderHint}>화살표를 눌러 그룹 순서를 바꾸세요. 이 기기에 저장돼요.</Text>}
+
+      {showAddForm && (
+        <View style={styles.formWrap}>
+          <PersonForm persons={persons} onSubmit={addPerson} />
+        </View>
+      )}
+
+      {/* 관계별 클러스터링 목록 */}
+      <FlatList
+        data={clusteredPersons}
+        keyExtractor={(item) => item.relation}
+        contentContainerStyle={styles.listContainer}
+        keyboardShouldPersistTaps="handled"
+        ListEmptyComponent={
+          <View style={styles.empty}>
+            <Text style={styles.emptyText}>등록된 친구가 없습니다.</Text>
+          </View>
+        }
+        renderItem={({ item, index }) => {
+          const isCollapsed = reordering || collapsedRelations.has(item.relation);
+          return (
+            <View style={styles.clusterBox}>
+              <Pressable
+                style={styles.clusterHeader}
+                onPress={() => !reordering && toggleCollapse(item.relation)}
+              >
+                <View style={styles.clusterTitleRow}>
+                  {!reordering && (
+                    <Ionicons name={isCollapsed ? 'chevron-forward' : 'chevron-down'} size={16} color={colors.textTertiary} />
+                  )}
+                  <Text style={styles.clusterName}>{item.relation}</Text>
+                  <View style={styles.clusterCountBadge}>
+                    <Text style={styles.clusterCountText}>{item.data.length}명</Text>
+                  </View>
+                </View>
+                {reordering && (
+                  <View style={styles.orderButtons}>
+                    {[
+                      ['chevron-up', -1, index === 0],
+                      ['chevron-down', 1, index === clusteredPersons.length - 1],
+                    ].map(([icon, offset, disabled]) => (
+                      <Pressable
+                        key={icon}
+                        style={[styles.orderButton, disabled && styles.orderButtonDisabled]}
+                        disabled={disabled}
+                        onPress={() => moveGroup(index, offset)}
+                        hitSlop={4}
+                      >
+                        <Ionicons name={icon} size={18} color={colors.textSub} />
+                      </Pressable>
+                    ))}
+                  </View>
+                )}
+              </Pressable>
+
+              {!isCollapsed && (
+                <View style={styles.clusterMembers}>
+                  {item.data.map((p) => (
+                    <Pressable key={p.id} style={styles.personCard} onPress={() => setPersonId(p.id)}>
+                      <View style={styles.personInfo}>
+                        <Text style={styles.personName}>{p.name}</Text>
+                        <Text style={styles.personMeta}>
+                          만남 {p.meeting_count || 0}회 · 마지막 만남{' '}
+                          {p.last_met_at ? formatDate(p.last_met_at) : '기록 없음'}
+                        </Text>
+                      </View>
+                      <Ionicons name="chevron-forward" size={18} color={colors.textDisabled} />
+                    </Pressable>
+                  ))}
+                </View>
+              )}
+            </View>
+          );
+        }}
+      />
+    </View>
+  );
+
+  const renderTrash = () => (
+    <FlatList
+      data={deletedPersons}
+      keyExtractor={(item) => String(item.id)}
+      contentContainerStyle={styles.listContainer}
+      ListEmptyComponent={
+        <View style={styles.empty}>
+          <Text style={styles.emptyText}>휴지통이 비어 있습니다.</Text>
+        </View>
+      }
+      renderItem={({ item }) => {
+        // 서버 시각의 마이크로초는 기기마다 해석이 달라 초까지만 쓴다
+        const deletedAt = new Date(item.deleted_at.slice(0, 19));
+        const daysPassed = Math.floor((new Date() - deletedAt) / (1000 * 60 * 60 * 24));
+        const daysLeft = Math.max(30 - daysPassed, 0);
+
+        return (
+          <View style={styles.trashCard}>
+            <View style={styles.trashInfo}>
+              <Text style={styles.trashName}>
+                {item.name}{' '}
+                {item.relation ? <Text style={styles.trashRelation}>({item.relation})</Text> : null}
+              </Text>
+              <Text style={styles.trashDays}>{daysLeft}일 후 완전히 삭제돼요</Text>
+            </View>
+            <View style={styles.trashActions}>
+              <Pressable style={styles.btnRestore} onPress={() => handleRestorePerson(item)}>
+                <Text style={styles.btnRestoreText}>복구</Text>
+              </Pressable>
+              <Pressable style={styles.btnPermanent} onPress={() => handlePermanentDelete(item)}>
+                <Text style={styles.btnPermanentText}>영구삭제</Text>
+              </Pressable>
+            </View>
+          </View>
+        );
+      }}
+    />
+  );
+
+  let body;
+  if (meeting) {
+    body = (
+      <View style={styles.formWrap}>
+        <MeetingDetail
+          meeting={meeting}
+          onClose={() => setMeetingId(null)}
+          closeLabel="뒤로"
+          onDeleted={handleMeetingDeleted}
+        />
+      </View>
+    );
+  } else if (person) {
+    body = (
+      <PersonDetail
+        key={person.id}
+        person={person}
+        persons={persons}
+        meetings={personMeetings}
+        onSave={savePerson}
+        onDelete={() => handleDeletePerson(person)}
+        onOpenMeeting={setMeetingId}
+      />
+    );
+  } else {
+    body = (
+      <>
+        {/* 탭 전환 (친구 목록 vs 휴지통) */}
         <View style={styles.tabBar}>
           <Pressable
             style={[styles.tabButton, tab === 'list' && styles.tabButtonActive]}
             onPress={() => setTab('list')}
           >
-            <Text style={[styles.tabText, tab === 'list' && styles.tabTextActive]}>
-              등록된 사람 ({persons.length})
-            </Text>
+            <Text style={[styles.tabText, tab === 'list' && styles.tabTextActive]}>친구 ({persons.length})</Text>
           </Pressable>
           <Pressable
             style={[styles.tabButton, tab === 'trash' && styles.tabButtonActive]}
             onPress={() => setTab('trash')}
           >
             <Text style={[styles.tabText, tab === 'trash' && styles.tabTextActive]}>
-              휴지통 🗑️ ({deletedPersons.length})
+              휴지통 ({deletedPersons.length})
             </Text>
           </Pressable>
         </View>
 
         {loading ? (
           <View style={styles.centerBox}>
-            <ActivityIndicator size="large" color="#2563eb" />
+            <ActivityIndicator size="large" color={colors.primary} />
           </View>
         ) : tab === 'list' ? (
-          /* =================== 사람 목록 탭 =================== */
-          <View style={styles.tabContent}>
-            {/* 툴바: 추가 버튼 + 정렬 및 펼치기/접기 */}
-            <View style={styles.toolbar}>
-              <Pressable
-                style={[styles.btnAdd, showAddForm && styles.btnAddActive]}
-                onPress={() => (showAddForm ? closeForm() : setShowAddForm(true))}
-              >
-                <Text style={styles.btnAddText}>{showAddForm ? '✕ 닫기' : '＋ 사람 추가'}</Text>
-              </Pressable>
-              <View style={styles.toolActions}>
-                <Pressable
-                  style={styles.btnTool}
-                  onPress={() => setSortMode(sortMode === 'name' ? 'count_desc' : 'name')}
-                >
-                  <Text style={styles.btnToolText}>
-                    {sortMode === 'name' ? '이름순' : '만남순'}
-                  </Text>
-                </Pressable>
-                <Pressable style={styles.btnTool} onPress={expandAll}>
-                  <Text style={styles.btnToolText}>펼치기</Text>
-                </Pressable>
-                <Pressable style={styles.btnTool} onPress={collapseAll}>
-                  <Text style={styles.btnToolText}>접기</Text>
-                </Pressable>
-              </View>
-            </View>
-
-            {/* 사람 추가 인라인 폼 */}
-            {showAddForm && (
-              <View style={styles.addFormBox}>
-                <Text style={styles.formTitle}>{editingPerson ? `${editingPerson.name} 님 정보 수정` : '새로운 사람 등록'}</Text>
-                <TextInput
-                  style={styles.input}
-                  placeholder="이름 (필수)"
-                  value={newName}
-                  onChangeText={setNewName}
-                />
-                <TextInput
-                  style={styles.input}
-                  placeholder="관계 (예: 대학 동기, 회사, 친구)"
-                  value={newRelation}
-                  onChangeText={setNewRelation}
-                />
-
-                {/* 기존 등록된 관계 태그 추천 */}
-                {existingRelations.length > 0 && (
-                  <View style={styles.tagWrap}>
-                    <Text style={styles.tagLabel}>추천 태그:</Text>
-                    <ScrollView horizontal showsHorizontalScrollIndicator={false} keyboardShouldPersistTaps="handled">
-                      {existingRelations.map((rel) => (
-                        <Pressable
-                          key={rel}
-                          style={styles.tagChip}
-                          onPress={() => setNewRelation(rel)}
-                        >
-                          <Text style={styles.tagChipText}>{rel}</Text>
-                        </Pressable>
-                      ))}
-                    </ScrollView>
-                  </View>
-                )}
-
-                <View style={styles.cycleInputRow}>
-                  <Text style={styles.cycleLabel}>연락 주기:</Text>
-                  <TextInput
-                    style={[styles.input, styles.cycleInput]}
-                    placeholder="30"
-                    keyboardType="number-pad"
-                    value={newCycleDays}
-                    onChangeText={setNewCycleDays}
-                  />
-                  <Text style={styles.cycleUnit}>일마다</Text>
-                </View>
-
-                <Pressable
-                  style={[styles.btnSubmit, submitting && styles.btnDisabled]}
-                  onPress={handleAddPerson}
-                  disabled={submitting}
-                >
-                  {submitting ? (
-                    <ActivityIndicator size="small" color="#fff" />
-                  ) : (
-                    <Text style={styles.btnSubmitText}>{editingPerson ? '수정 완료' : '등록 완료'}</Text>
-                  )}
-                </Pressable>
-              </View>
-            )}
-
-            {/* 관계별 클러스터링 목록 */}
-            <FlatList
-              data={clusteredPersons}
-              keyExtractor={(item) => item.relation}
-              contentContainerStyle={styles.listContainer}
-              keyboardShouldPersistTaps="handled"
-              ListEmptyComponent={
-                <View style={styles.empty}>
-                  <Text style={styles.emptyText}>등록된 사람이 없습니다.</Text>
-                </View>
-              }
-              renderItem={({ item }) => {
-                const isCollapsed = collapsedRelations.has(item.relation);
-                return (
-                  <View style={styles.clusterBox}>
-                    <Pressable
-                      style={styles.clusterHeader}
-                      onPress={() => toggleCollapse(item.relation)}
-                    >
-                      <View style={styles.clusterTitleRow}>
-                        <Text style={styles.clusterArrow}>{isCollapsed ? '▶' : '▼'}</Text>
-                        <Text style={styles.clusterName}>{item.relation}</Text>
-                      </View>
-                      <View style={styles.clusterCountBadge}>
-                        <Text style={styles.clusterCountText}>{item.data.length}명</Text>
-                      </View>
-                    </Pressable>
-
-                    {!isCollapsed && (
-                      <View style={styles.clusterMembers}>
-                        {item.data.map((person) => (
-                          <View key={person.id} style={styles.personCard}>
-                            <View style={styles.personInfo}>
-                              <Text style={styles.personName}>{person.name}</Text>
-                              <Text style={styles.personMeta}>
-                                만남 {person.meeting_count || 0}회 · 마지막 만남{' '}
-                                {person.last_met_at ? formatDate(person.last_met_at) : '기록 없음'}
-                              </Text>
-                            </View>
-                            <Pressable
-                              style={styles.btnEdit}
-                              onPress={() => startEdit(person)}
-                              hitSlop={8}
-                            >
-                              <Text style={styles.btnEditText}>수정</Text>
-                            </Pressable>
-                            <Pressable
-                              style={styles.btnDelete}
-                              onPress={() => handleDeletePerson(person)}
-                              hitSlop={8}
-                            >
-                              <Text style={styles.btnDeleteText}>삭제</Text>
-                            </Pressable>
-                          </View>
-                        ))}
-                      </View>
-                    )}
-                  </View>
-                );
-              }}
-            />
-          </View>
+          renderList()
         ) : (
-          /* =================== 휴지통 탭 =================== */
-          <FlatList
-            data={deletedPersons}
-            keyExtractor={(item) => String(item.id)}
-            contentContainerStyle={styles.listContainer}
-            ListEmptyComponent={
-              <View style={styles.empty}>
-                <Text style={styles.emptyText}>휴지통이 비어 있습니다.</Text>
-              </View>
-            }
-            renderItem={({ item }) => {
-              // 서버 시각의 마이크로초는 기기마다 해석이 달라 초까지만 쓴다
-              const deletedAt = new Date(item.deleted_at.slice(0, 19));
-              const daysPassed = Math.floor((new Date() - deletedAt) / (1000 * 60 * 60 * 24));
-              const daysLeft = Math.max(30 - daysPassed, 0);
-
-              return (
-                <View style={styles.trashCard}>
-                  <View style={styles.trashInfo}>
-                    <Text style={styles.trashName}>
-                      {item.name}{' '}
-                      {item.relation ? (
-                        <Text style={styles.trashRelation}>({item.relation})</Text>
-                      ) : null}
-                    </Text>
-                    <Text style={styles.trashDays}>⏱️ {daysLeft}일 후 자동 완전 삭제</Text>
-                  </View>
-                  <View style={styles.trashActions}>
-                    <Pressable
-                      style={styles.btnRestore}
-                      onPress={() => handleRestorePerson(item)}
-                    >
-                      <Text style={styles.btnRestoreText}>복구</Text>
-                    </Pressable>
-                    <Pressable
-                      style={styles.btnPermanent}
-                      onPress={() => handlePermanentDelete(item)}
-                    >
-                      <Text style={styles.btnPermanentText}>영구삭제</Text>
-                    </Pressable>
-                  </View>
-                </View>
-              );
-            }}
-          />
+          renderTrash()
         )}
-      </View>
+      </>
+    );
+  }
+
+  return (
+    <Modal visible={visible} transparent animationType="slide" onRequestClose={close}>
+      <KeyboardAvoidingView style={styles.flex} behavior={Platform.OS === 'ios' ? 'padding' : undefined}>
+        <Pressable style={styles.backdrop} onPress={close} />
+        <View style={[styles.sheet, { paddingBottom: insets.bottom + 8 }]}>
+          {/* 상단 헤더 */}
+          <View style={styles.header}>
+            {person && !meeting ? (
+              <Pressable onPress={() => setPersonId(null)} hitSlop={12}>
+                <View style={styles.backRow}>
+                  <Ionicons name="chevron-back" size={20} color={colors.text} />
+                  <Text style={styles.backButton}>친구 목록</Text>
+                </View>
+              </Pressable>
+            ) : (
+              <Text style={styles.title}>{meeting ? '만남 기록' : '친구 목록'}</Text>
+            )}
+            <Pressable onPress={close} hitSlop={12}>
+              <Text style={styles.close}>닫기</Text>
+            </Pressable>
+          </View>
+          {body}
+        </View>
       </KeyboardAvoidingView>
     </Modal>
   );
@@ -497,13 +482,12 @@ export default function PersonManagerSheet({ visible, onClose, onPersonsChanged 
 
 const styles = StyleSheet.create({
   flex: { flex: 1 },
-  backdrop: { flex: 1, backgroundColor: 'rgba(0,0,0,0.4)' },
+  backdrop: { flex: 1, backgroundColor: colors.dim },
   sheet: {
-    backgroundColor: '#fff',
-    borderTopLeftRadius: 20,
-    borderTopRightRadius: 20,
-    maxHeight: '85%',
-    minHeight: '50%',
+    backgroundColor: colors.white,
+    borderTopLeftRadius: 24,
+    borderTopRightRadius: 24,
+    height: '85%',
     flexShrink: 1,
   },
   header: {
@@ -511,31 +495,27 @@ const styles = StyleSheet.create({
     alignItems: 'center',
     justifyContent: 'space-between',
     paddingHorizontal: 20,
-    paddingTop: 16,
+    paddingTop: 24,
     paddingBottom: 12,
   },
-  title: { fontSize: 18, fontWeight: '700' },
-  close: { fontSize: 14, color: '#2563eb', fontWeight: '600' },
+  title: { fontSize: 20, fontWeight: '700', color: colors.text },
+  close: { fontSize: 15, fontWeight: '600', color: colors.textTertiary },
+  backRow: { flexDirection: 'row', alignItems: 'center', marginLeft: -4 },
+  backButton: { fontSize: 17, color: colors.text, fontWeight: '600' },
 
+  // 회색 바탕 위 흰 칸이 움직이는 세그먼트 탭
   tabBar: {
     flexDirection: 'row',
-    borderBottomWidth: 1,
-    borderBottomColor: '#e5e7eb',
-    marginHorizontal: 16,
+    backgroundColor: colors.grey100,
+    borderRadius: 12,
+    padding: 4,
+    marginHorizontal: 20,
     marginBottom: 8,
   },
-  tabButton: {
-    flex: 1,
-    paddingVertical: 10,
-    alignItems: 'center',
-    borderBottomWidth: 2,
-    borderBottomColor: 'transparent',
-  },
-  tabButtonActive: {
-    borderBottomColor: '#2563eb',
-  },
-  tabText: { fontSize: 14, color: '#6b7280', fontWeight: '600' },
-  tabTextActive: { color: '#2563eb', fontWeight: '700' },
+  tabButton: { flex: 1, paddingVertical: 9, alignItems: 'center', borderRadius: 9 },
+  tabButtonActive: { backgroundColor: colors.white, ...shadow, shadowOpacity: 0.06, shadowRadius: 4 },
+  tabText: { fontSize: 14, color: colors.textTertiary, fontWeight: '600' },
+  tabTextActive: { color: colors.text, fontWeight: '700' },
 
   tabContent: { flex: 1 },
   centerBox: { padding: 40, alignItems: 'center' },
@@ -544,151 +524,61 @@ const styles = StyleSheet.create({
     flexDirection: 'row',
     justifyContent: 'space-between',
     alignItems: 'center',
-    paddingHorizontal: 16,
-    paddingVertical: 6,
-  },
-  btnAdd: {
-    backgroundColor: '#2563eb',
-    paddingVertical: 6,
-    paddingHorizontal: 12,
-    borderRadius: 6,
-  },
-  btnAddActive: { backgroundColor: '#64748b' },
-  btnAddText: { color: '#fff', fontSize: 13, fontWeight: '600' },
-  toolActions: { flexDirection: 'row', gap: 6 },
-  btnTool: {
-    backgroundColor: '#f1f5f9',
-    paddingVertical: 6,
-    paddingHorizontal: 8,
-    borderRadius: 6,
-    borderWidth: 1,
-    borderColor: '#e2e8f0',
-  },
-  btnToolText: { fontSize: 12, color: '#475569', fontWeight: '500' },
-
-  addFormBox: {
-    backgroundColor: '#f8fafc',
-    marginHorizontal: 16,
-    marginVertical: 8,
-    padding: 12,
-    borderRadius: 8,
-    borderWidth: 1,
-    borderColor: '#e2e8f0',
-  },
-  formTitle: { fontSize: 14, fontWeight: '700', marginBottom: 8, color: '#1e293b' },
-  input: {
-    backgroundColor: '#fff',
-    borderWidth: 1,
-    borderColor: '#cbd5e1',
-    borderRadius: 6,
-    paddingHorizontal: 10,
+    paddingHorizontal: 20,
     paddingVertical: 8,
-    fontSize: 14,
-    marginBottom: 8,
   },
-  tagWrap: { marginBottom: 8 },
-  tagLabel: { fontSize: 12, color: '#64748b', marginBottom: 4 },
-  tagChip: {
-    backgroundColor: '#e0e7ff',
-    paddingHorizontal: 10,
-    paddingVertical: 4,
-    borderRadius: 12,
-    marginRight: 6,
-  },
-  tagChipText: { fontSize: 12, color: '#3730a3', fontWeight: '500' },
-  cycleInputRow: { flexDirection: 'row', alignItems: 'center', marginBottom: 10 },
-  cycleLabel: { fontSize: 13, color: '#475569', marginRight: 8 },
-  cycleInput: { width: 60, marginBottom: 0, textAlign: 'center' },
-  cycleUnit: { fontSize: 13, color: '#475569', marginLeft: 6 },
-  btnSubmit: {
-    backgroundColor: '#10b981',
-    paddingVertical: 10,
-    borderRadius: 6,
-    alignItems: 'center',
-  },
-  btnSubmitText: { color: '#fff', fontSize: 14, fontWeight: '700' },
-  btnDisabled: { opacity: 0.6 },
+  btnAdd: { backgroundColor: colors.primaryBg, paddingVertical: 8, paddingHorizontal: 14, borderRadius: 10 },
+  btnAddActive: { backgroundColor: colors.grey100 },
+  btnAddText: { color: colors.primary, fontSize: 14, fontWeight: '600' },
+  toolActions: { flexDirection: 'row', gap: 6 },
+  btnTool: { backgroundColor: colors.grey100, paddingVertical: 8, paddingHorizontal: 10, borderRadius: 10 },
+  btnToolText: { fontSize: 13, color: colors.textSub, fontWeight: '600' },
+  btnToolActive: { backgroundColor: colors.primary },
+  btnToolTextActive: { color: colors.white, fontWeight: '700' },
+  orderHint: { fontSize: 13, color: colors.textTertiary, paddingHorizontal: 20, paddingBottom: 8 },
+  formWrap: { paddingHorizontal: 20 },
 
-  listContainer: { paddingHorizontal: 16, paddingBottom: 20 },
-  clusterBox: {
-    marginBottom: 10,
-    backgroundColor: '#ffffff',
-    borderRadius: 8,
-    borderWidth: 1,
-    borderColor: '#e2e8f0',
-    overflow: 'hidden',
-  },
+  listContainer: { paddingHorizontal: 20, paddingBottom: 20 },
+  clusterBox: { marginBottom: 12, backgroundColor: colors.grey50, borderRadius: 16, overflow: 'hidden' },
   clusterHeader: {
     flexDirection: 'row',
     justifyContent: 'space-between',
     alignItems: 'center',
-    paddingVertical: 10,
-    paddingHorizontal: 12,
-    backgroundColor: '#f8fafc',
+    paddingVertical: 14,
+    paddingHorizontal: 16,
   },
   clusterTitleRow: { flexDirection: 'row', alignItems: 'center', gap: 6 },
-  clusterArrow: { fontSize: 11, color: '#64748b' },
-  clusterName: { fontSize: 14, fontWeight: '700', color: '#1e293b' },
-  clusterCountBadge: {
-    backgroundColor: '#e2e8f0',
-    paddingHorizontal: 8,
-    paddingVertical: 2,
-    borderRadius: 10,
-  },
-  clusterCountText: { fontSize: 12, color: '#475569', fontWeight: '600' },
-  clusterMembers: { paddingHorizontal: 12, paddingVertical: 4 },
-  personCard: {
-    flexDirection: 'row',
-    justifyContent: 'space-between',
-    alignItems: 'center',
-    paddingVertical: 8,
-    borderBottomWidth: 1,
-    borderBottomColor: '#f1f5f9',
-  },
+  clusterName: { fontSize: 16, fontWeight: '700', color: colors.text },
+  clusterCountBadge: { backgroundColor: colors.border, paddingHorizontal: 8, paddingVertical: 2, borderRadius: 10 },
+  clusterCountText: { fontSize: 12, color: colors.textSub, fontWeight: '600' },
+  clusterMembers: { paddingHorizontal: 16, paddingBottom: 6 },
+  personCard: { flexDirection: 'row', justifyContent: 'space-between', alignItems: 'center', paddingVertical: 12 },
   personInfo: { flex: 1 },
-  personName: { fontSize: 15, fontWeight: '600', color: '#0f172a' },
-  personMeta: { fontSize: 12, color: '#64748b', marginTop: 2 },
-  btnEdit: { paddingVertical: 4, paddingHorizontal: 8 },
-  btnEditText: { fontSize: 12, color: '#2563eb' },
-  btnDelete: { paddingVertical: 4, paddingHorizontal: 8 },
-  btnDeleteText: { fontSize: 12, color: '#ef4444' },
+  personName: { fontSize: 16, fontWeight: '600', color: colors.text },
+  personMeta: { fontSize: 13, color: colors.textTertiary, marginTop: 3 },
+  orderButtons: { flexDirection: 'row', gap: 6 },
+  orderButton: { width: 36, height: 32, borderRadius: 10, backgroundColor: colors.white, alignItems: 'center', justifyContent: 'center' },
+  orderButtonDisabled: { opacity: 0.3 },
 
   trashCard: {
     flexDirection: 'row',
     justifyContent: 'space-between',
     alignItems: 'center',
-    backgroundColor: '#fff',
-    borderWidth: 1,
-    borderColor: '#f1f5f9',
-    padding: 12,
-    borderRadius: 8,
-    marginBottom: 8,
+    backgroundColor: colors.grey50,
+    padding: 16,
+    borderRadius: 16,
+    marginBottom: 10,
   },
   trashInfo: { flex: 1 },
-  trashName: { fontSize: 15, fontWeight: '600', color: '#1e293b' },
-  trashRelation: { fontSize: 13, color: '#64748b', fontWeight: 'normal' },
-  trashDays: { fontSize: 12, color: '#e11d48', marginTop: 4 },
+  trashName: { fontSize: 16, fontWeight: '600', color: colors.text },
+  trashRelation: { fontSize: 13, color: colors.textTertiary, fontWeight: 'normal' },
+  trashDays: { fontSize: 13, color: colors.danger, marginTop: 4 },
   trashActions: { flexDirection: 'row', gap: 6 },
-  btnRestore: {
-    backgroundColor: '#eff6ff',
-    borderWidth: 1,
-    borderColor: '#bfdbfe',
-    paddingVertical: 6,
-    paddingHorizontal: 10,
-    borderRadius: 6,
-  },
-  btnRestoreText: { color: '#2563eb', fontSize: 12, fontWeight: '600' },
-  btnPermanent: {
-    backgroundColor: '#fef2f2',
-    borderWidth: 1,
-    borderColor: '#fecaca',
-    paddingVertical: 6,
-    paddingHorizontal: 10,
-    borderRadius: 6,
-  },
-  btnPermanentText: { color: '#dc2626', fontSize: 12, fontWeight: '600' },
+  btnRestore: { backgroundColor: colors.primaryBg, paddingVertical: 8, paddingHorizontal: 12, borderRadius: 10 },
+  btnRestoreText: { color: colors.primary, fontSize: 13, fontWeight: '600' },
+  btnPermanent: { backgroundColor: colors.dangerBg, paddingVertical: 8, paddingHorizontal: 12, borderRadius: 10 },
+  btnPermanentText: { color: colors.danger, fontSize: 13, fontWeight: '600' },
 
   empty: { padding: 40, alignItems: 'center' },
-  emptyText: { color: '#94a3b8', fontSize: 14 },
+  emptyText: { color: colors.textTertiary, fontSize: 15 },
 });
-
