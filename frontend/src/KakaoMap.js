@@ -1,13 +1,14 @@
 import { forwardRef, useEffect, useImperativeHandle, useRef, useState } from 'react';
 import { StyleSheet, Text, View } from 'react-native';
 import { WebView } from 'react-native-webview';
+import { colors } from './theme';
 
 const KAKAO_JS_KEY = process.env.EXPO_PUBLIC_KAKAO_JS_KEY;
 // Kakao 개발자 콘솔 > 플랫폼 > Web 에 이 도메인을 등록해야 지도가 로드됩니다.
 const BASE_URL = 'http://localhost';
 
 // WebView → 앱 메시지: { type: 'ready' | 'error' | 'marker', ... }
-// 앱 → WebView: window.setMarkers(list, fit), window.focusAt(lat, lng)
+// 앱 → WebView: window.setMarkers(list, fit), window.focusAt(lat, lng), window.showMe(lat, lng)
 const mapHtml = (key) => `<!DOCTYPE html>
 <html>
 <head>
@@ -15,9 +16,11 @@ const mapHtml = (key) => `<!DOCTYPE html>
   <meta name="viewport" content="width=device-width, initial-scale=1.0, user-scalable=no" />
   <style>
     html, body, #map { margin: 0; padding: 0; width: 100%; height: 100%; }
-    .pin { width: 48px; height: 48px; border-radius: 50%; border: 3px solid #fff; background: #2563eb center / cover no-repeat;
-           box-shadow: 0 2px 6px rgba(0,0,0,.35); cursor: pointer; }
-    .pin.dot { width: 18px; height: 18px; }
+    .pin { width: 48px; height: 48px; border-radius: 16px; border: 3px solid #fff; background: #3182F6 center / cover no-repeat;
+           box-shadow: 0 4px 12px rgba(0,0,0,.18); cursor: pointer; }
+    .pin.dot { width: 18px; height: 18px; border-radius: 50%; }
+    .me { width: 16px; height: 16px; border-radius: 50%; background: #3182F6; border: 3px solid #fff;
+          box-shadow: 0 0 0 8px rgba(49,130,246,.2), 0 2px 6px rgba(0,0,0,.2); }
   </style>
   <script>
     function post(msg) {
@@ -26,7 +29,7 @@ const mapHtml = (key) => `<!DOCTYPE html>
     function report(message) { post({ type: 'error', message: message }); }
     window.onerror = function (message) { report('JS 오류: ' + message); };
 
-    var map = null, overlays = [], pending = null, pendingFit = false;
+    var map = null, overlays = [], pending = null, pendingFit = false, me = null;
 
     window.setMarkers = function (list, fit) {
       pending = list;
@@ -36,6 +39,21 @@ const mapHtml = (key) => `<!DOCTYPE html>
 
     window.focusAt = function (lat, lng) {
       if (map) map.panTo(new kakao.maps.LatLng(lat, lng));
+    };
+
+    // 내 위치 점을 찍고 그곳으로 이동 (조금 확대)
+    window.showMe = function (lat, lng) {
+      if (!map) return;
+      var pos = new kakao.maps.LatLng(lat, lng);
+      if (!me) {
+        var el = document.createElement('div');
+        el.className = 'me';
+        me = new kakao.maps.CustomOverlay({ map: map, position: pos, content: el, zIndex: 10 });
+      } else {
+        me.setPosition(pos);
+      }
+      if (map.getLevel() > 4) map.setLevel(4);
+      map.panTo(pos);
     };
 
     function render() {
@@ -88,6 +106,9 @@ const KakaoMap = forwardRef(function KakaoMap({ markers = [], onMarkerPress }, r
   useImperativeHandle(ref, () => ({
     focus(lat, lng) {
       webView.current?.injectJavaScript(`window.focusAt(${Number(lat)}, ${Number(lng)}); true;`);
+    },
+    showMyLocation(lat, lng) {
+      webView.current?.injectJavaScript(`window.showMe(${Number(lat)}, ${Number(lng)}); true;`);
     },
   }));
 
@@ -163,6 +184,6 @@ const styles = StyleSheet.create({
   container: { flex: 1 },
   center: { flex: 1, alignItems: 'center', justifyContent: 'center', padding: 24 },
   message: { fontSize: 16, textAlign: 'center' },
-  errorBox: { position: 'absolute', left: 12, right: 12, bottom: 170, backgroundColor: '#b91c1c', padding: 12, borderRadius: 8 },
-  errorText: { color: '#fff', fontSize: 14 },
+  errorBox: { position: 'absolute', left: 16, right: 16, top: 120, backgroundColor: colors.danger, padding: 14, borderRadius: 12 },
+  errorText: { color: colors.white, fontSize: 14 },
 });

@@ -1,7 +1,9 @@
 import { useCallback, useEffect, useMemo, useRef, useState } from 'react';
-import { Alert, Pressable, StyleSheet, Text, View } from 'react-native';
+import { ActivityIndicator, Alert, Pressable, StyleSheet, Text, View } from 'react-native';
+import { Ionicons } from '@expo/vector-icons';
 import { StatusBar } from 'expo-status-bar';
 import * as ImagePicker from 'expo-image-picker';
+import * as Location from 'expo-location';
 import { SafeAreaProvider, useSafeAreaInsets } from 'react-native-safe-area-context';
 
 import KakaoMap from './src/KakaoMap';
@@ -11,6 +13,7 @@ import PersonManagerSheet from './src/PersonManagerSheet';
 import PhotoRecordSheet from './src/PhotoRecordSheet';
 import ReminderSheet from './src/ReminderSheet';
 import { fetchMeetings, fetchReminders, photoUrl } from './src/api';
+import { colors, radius, shadow } from './src/theme';
 
 const DEFAULT_RATIO = 1.5; // 백엔드 기본값과 같게 맞춤
 
@@ -37,6 +40,7 @@ function MemoryMap() {
   const [meetings, setMeetings] = useState([]);
   const [selectedMeeting, setSelectedMeeting] = useState(null);
   const [draft, setDraft] = useState(null); // 기록 시트: { asset } (직접 기록이면 asset 없음)
+  const [locating, setLocating] = useState(false);
 
   const latestRequest = useRef(0);
 
@@ -121,43 +125,78 @@ function MemoryMap() {
     load();
   };
 
+  const goToMyLocation = async () => {
+    setLocating(true);
+    try {
+      const { status } = await Location.requestForegroundPermissionsAsync();
+      if (status !== 'granted') {
+        Alert.alert('위치 권한이 필요해요', '설정에서 이 앱의 위치 접근을 허용해 주세요.');
+        return;
+      }
+      // 마지막으로 알던 위치로 먼저 옮기고, 정확한 위치가 오면 다시 옮긴다
+      const last = await Location.getLastKnownPositionAsync();
+      if (last) map.current?.showMyLocation(last.coords.latitude, last.coords.longitude);
+      const { coords } = await Location.getCurrentPositionAsync({ accuracy: Location.Accuracy.Balanced });
+      map.current?.showMyLocation(coords.latitude, coords.longitude);
+    } catch (e) {
+      Alert.alert('위치를 가져오지 못했어요', e.message);
+    } finally {
+      setLocating(false);
+    }
+  };
+
   const handlePersonsChanged = () => {
     load();
     loadMeetings(); // 이름이 바뀌거나 영구 삭제되면 만남 기록에도 반영된다
   };
 
-  const top = insets.top + 12;
-  const bottom = Math.max(insets.bottom + 16, 40); // 지도 왼쪽 아래 카카오 로고를 가리지 않게
+  const top = insets.top + 8;
 
   return (
     <View style={styles.container}>
-      <KakaoMap
-        ref={map}
-        markers={markers}
-        onMarkerPress={(id) => setSelectedMeeting(meetings.find((m) => m.id === id) ?? null)}
-      />
+      {/* 지도는 아래 패널 위까지만 차지해 왼쪽 아래 카카오 로고가 가려지지 않는다 */}
+      <View style={styles.mapArea}>
+        <KakaoMap
+          ref={map}
+          markers={markers}
+          onMarkerPress={(id) => setSelectedMeeting(meetings.find((m) => m.id === id) ?? null)}
+        />
 
-      <Pressable style={[styles.personButton, { top }]} onPress={() => setPersonSheetOpen(true)}>
-        <Text style={styles.personButtonText}>👥 사람 관리</Text>
-      </Pressable>
-
-      <Pressable style={[styles.reminderButton, { top }]} onPress={openSheet}>
-        <Text style={styles.reminderButtonText}>연락할 사람</Text>
-        <View style={[styles.badge, error && styles.badgeError]}>
-          <Text style={styles.badgeText}>{error ? '!' : reminders.length}</Text>
+        <View style={[styles.topBar, { top }]}>
+          <Pressable style={styles.pill} onPress={() => setPersonSheetOpen(true)}>
+            <Ionicons name="people" size={16} color={colors.textSub} />
+            <Text style={styles.pillText}>친구 목록</Text>
+          </Pressable>
+          <Pressable style={styles.pill} onPress={openSheet}>
+            <Text style={styles.pillText}>연락할 사람</Text>
+            <View style={[styles.badge, error && styles.badgeError, !error && !reminders.length && styles.badgeZero]}>
+              <Text style={styles.badgeText}>{error ? '!' : reminders.length}</Text>
+            </View>
+          </Pressable>
         </View>
-      </Pressable>
 
-      <Pressable style={[styles.meetingButton, { bottom }]} onPress={openMeetingList}>
-        <Text style={styles.personButtonText}>📋 만남 기록</Text>
-      </Pressable>
-
-      <View style={[styles.recordButtons, { bottom }]}>
-        <Pressable style={styles.manualButton} onPress={() => setDraft({})}>
-          <Text style={styles.personButtonText}>✏️ 직접 기록</Text>
+        <Pressable style={styles.locateButton} onPress={goToMyLocation} disabled={locating} hitSlop={6}>
+          {locating ? (
+            <ActivityIndicator size="small" color={colors.primary} />
+          ) : (
+            <Ionicons name="locate" size={22} color={colors.primary} />
+          )}
         </Pressable>
-        <Pressable style={styles.recordButton} onPress={pickPhoto}>
-          <Text style={styles.recordButtonText}>＋ 사진으로 기록</Text>
+      </View>
+
+      <View style={[styles.panel, { paddingBottom: insets.bottom + 12 }]}>
+        <View style={styles.panelRow}>
+          <Pressable style={({ pressed }) => [styles.secondaryButton, pressed && styles.pressed]} onPress={openMeetingList}>
+            <Ionicons name="list" size={18} color={colors.textSub} />
+            <Text style={styles.secondaryText}>만남 기록</Text>
+          </Pressable>
+          <Pressable style={({ pressed }) => [styles.secondaryButton, pressed && styles.pressed]} onPress={() => setDraft({})}>
+            <Ionicons name="create-outline" size={18} color={colors.textSub} />
+            <Text style={styles.secondaryText}>직접 기록</Text>
+          </Pressable>
+        </View>
+        <Pressable style={({ pressed }) => [styles.primaryButton, pressed && styles.primaryPressed]} onPress={pickPhoto}>
+          <Text style={styles.primaryText}>사진으로 기록하기</Text>
         </Pressable>
       </View>
 
@@ -165,6 +204,8 @@ function MemoryMap() {
         visible={personSheetOpen}
         onClose={() => setPersonSheetOpen(false)}
         onPersonsChanged={handlePersonsChanged}
+        meetings={meetings}
+        onMeetingDeleted={handleDeleted}
       />
       <ReminderSheet
         visible={sheetOpen}
@@ -189,67 +230,59 @@ function MemoryMap() {
   );
 }
 
-const shadow = {
-  elevation: 4,
-  shadowColor: '#000',
-  shadowOpacity: 0.15,
-  shadowRadius: 4,
-  shadowOffset: { width: 0, height: 2 },
-};
-
 const styles = StyleSheet.create({
-  container: { flex: 1 },
-  personButton: {
-    position: 'absolute',
-    left: 12,
+  container: { flex: 1, backgroundColor: colors.white },
+  mapArea: { flex: 1 },
+  topBar: { position: 'absolute', left: 16, right: 16, flexDirection: 'row', justifyContent: 'space-between' },
+  pill: {
     flexDirection: 'row',
     alignItems: 'center',
-    backgroundColor: '#fff',
-    paddingVertical: 8,
+    gap: 6,
+    backgroundColor: colors.white,
+    height: 40,
     paddingHorizontal: 14,
-    borderRadius: 20,
+    borderRadius: radius.pill,
     ...shadow,
   },
-  personButtonText: { fontSize: 14, fontWeight: '600', color: '#1e293b' },
-  reminderButton: {
+  pillText: { fontSize: 15, fontWeight: '600', color: colors.text },
+  badge: { minWidth: 22, height: 22, borderRadius: 11, paddingHorizontal: 6, backgroundColor: colors.danger, alignItems: 'center', justifyContent: 'center' },
+  badgeZero: { backgroundColor: colors.textDisabled },
+  badgeError: { backgroundColor: colors.textTertiary },
+  badgeText: { color: colors.white, fontSize: 12, fontWeight: '700' },
+  locateButton: {
     position: 'absolute',
-    right: 12,
-    flexDirection: 'row',
+    right: 16,
+    bottom: 16,
+    width: 48,
+    height: 48,
+    borderRadius: 24,
+    backgroundColor: colors.white,
     alignItems: 'center',
-    backgroundColor: '#fff',
-    paddingVertical: 8,
-    paddingLeft: 14,
-    paddingRight: 8,
-    borderRadius: 20,
+    justifyContent: 'center',
     ...shadow,
   },
-  reminderButtonText: { fontSize: 14, fontWeight: '600', marginRight: 8 },
-  badge: { minWidth: 24, height: 24, borderRadius: 12, paddingHorizontal: 6, backgroundColor: '#dc2626', alignItems: 'center', justifyContent: 'center' },
-  badgeError: { backgroundColor: '#6b7280' },
-  badgeText: { color: '#fff', fontSize: 13, fontWeight: '700' },
-  meetingButton: {
-    position: 'absolute',
-    left: 12,
-    backgroundColor: '#fff',
-    paddingVertical: 10,
-    paddingHorizontal: 14,
-    borderRadius: 20,
-    ...shadow,
-  },
-  recordButtons: { position: 'absolute', right: 16, alignItems: 'flex-end', gap: 10 },
-  manualButton: {
-    backgroundColor: '#fff',
-    paddingVertical: 10,
-    paddingHorizontal: 14,
-    borderRadius: 20,
-    ...shadow,
-  },
-  recordButton: {
-    backgroundColor: '#2563eb',
-    paddingVertical: 14,
+  panel: {
+    backgroundColor: colors.white,
     paddingHorizontal: 20,
-    borderRadius: 28,
-    ...shadow,
+    paddingTop: 16,
+    gap: 10,
+    borderTopWidth: StyleSheet.hairlineWidth,
+    borderTopColor: colors.border,
   },
-  recordButtonText: { color: '#fff', fontSize: 15, fontWeight: '700' },
+  panelRow: { flexDirection: 'row', gap: 10 },
+  secondaryButton: {
+    flex: 1,
+    height: 48,
+    flexDirection: 'row',
+    alignItems: 'center',
+    justifyContent: 'center',
+    gap: 6,
+    borderRadius: radius.md,
+    backgroundColor: colors.grey100,
+  },
+  secondaryText: { fontSize: 15, fontWeight: '600', color: colors.textSub },
+  pressed: { opacity: 0.7 },
+  primaryButton: { height: 56, borderRadius: radius.lg, backgroundColor: colors.primary, alignItems: 'center', justifyContent: 'center' },
+  primaryPressed: { backgroundColor: colors.primaryPressed },
+  primaryText: { color: colors.white, fontSize: 17, fontWeight: '700' },
 });

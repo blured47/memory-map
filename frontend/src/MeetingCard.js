@@ -4,6 +4,7 @@ import { useSafeAreaInsets } from 'react-native-safe-area-context';
 
 import { deleteMeeting, photoUrl } from './api';
 import { formatDateTime } from './datetime';
+import { colors } from './theme';
 
 // 만남 한 건의 내용. 지도 카드와 만남 기록 목록에서 함께 쓴다
 export function MeetingDetail({ meeting, onClose, closeLabel = '닫기', onDeleted }) {
@@ -67,14 +68,14 @@ export default function MeetingCard({ meeting, onClose, onDeleted }) {
 }
 
 const styles = StyleSheet.create({
-  backdrop: { flex: 1, backgroundColor: 'rgba(0,0,0,0.3)' },
-  sheet: { maxHeight: '80%', backgroundColor: '#fff', borderTopLeftRadius: 16, borderTopRightRadius: 16, padding: 16 },
-  photo: { width: '100%', aspectRatio: 4 / 3, borderRadius: 12, backgroundColor: '#e5e7eb', marginBottom: 12 },
+  backdrop: { flex: 1, backgroundColor: colors.dim },
+  sheet: { maxHeight: '80%', backgroundColor: colors.white, borderTopLeftRadius: 24, borderTopRightRadius: 24, padding: 20, paddingTop: 24 },
+  photo: { width: '100%', aspectRatio: 4 / 3, borderRadius: 16, backgroundColor: colors.border, marginBottom: 12 },
   header: { flexDirection: 'row', justifyContent: 'space-between', alignItems: 'center' },
-  place: { fontSize: 18, fontWeight: '700', flex: 1, marginRight: 12 },
-  close: { fontSize: 15, color: '#2563eb' },
-  meta: { fontSize: 14, color: '#4b5563', marginTop: 4 },
-  memo: { fontSize: 15, color: '#111827', marginTop: 12, lineHeight: 22 },
-  delete: { marginTop: 20, paddingVertical: 12, borderRadius: 10, backgroundColor: '#fef2f2', alignItems: 'center' },
-  deleteText: { fontSize: 14, fontWeight: '600', color: '#b91c1c' },
+  place: { fontSize: 20, fontWeight: '700', color: colors.text, flex: 1, marginRight: 12 },
+  close: { fontSize: 15, fontWeight: '600', color: colors.textTertiary },
+  meta: { fontSize: 14, color: colors.textSub, marginTop: 4 },
+  memo: { fontSize: 16, color: colors.text, marginTop: 16, lineHeight: 24 },
+  delete: { marginTop: 24, paddingVertical: 15, borderRadius: 14, backgroundColor: colors.dangerBg, alignItems: 'center' },
+  deleteText: { fontSize: 14, fontWeight: '600', color: colors.danger },
 });

@@ -1,14 +1,15 @@
 import { FlatList, Modal, Pressable, RefreshControl, StyleSheet, Text, View } from 'react-native';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
+import { colors } from './theme';
 
 export const RATIO_OPTIONS = [1.2, 1.5, 2, 3];
 
 const CYCLE_SOURCE_LABEL = { average: '만남 기록 평균', manual: '직접 지정' };
 
 function severityColor(ratio) {
-  if (ratio >= 3) return '#dc2626';
-  if (ratio >= 2) return '#ea580c';
-  return '#d97706';
+  if (ratio >= 3) return colors.danger;
+  if (ratio >= 2) return colors.warning;
+  return colors.caution;
 }
 
 function ReminderItem({ person }) {
@@ -87,27 +88,27 @@ export default function ReminderSheet({ visible, onClose, reminders, loading, er
 }
 
 const styles = StyleSheet.create({
-  backdrop: { flex: 1, backgroundColor: 'rgba(0,0,0,0.3)' },
-  sheet: { maxHeight: '70%', minHeight: '40%', backgroundColor: '#fff', borderTopLeftRadius: 16, borderTopRightRadius: 16, paddingHorizontal: 16, paddingTop: 16 },
+  backdrop: { flex: 1, backgroundColor: colors.dim },
+  sheet: { maxHeight: '70%', minHeight: '40%', backgroundColor: colors.white, borderTopLeftRadius: 24, borderTopRightRadius: 24, paddingHorizontal: 20, paddingTop: 24 },
   header: { flexDirection: 'row', justifyContent: 'space-between', alignItems: 'center', marginBottom: 8 },
-  title: { fontSize: 18, fontWeight: '700' },
-  close: { fontSize: 15, color: '#2563eb' },
-  caption: { fontSize: 13, color: '#6b7280', marginBottom: 8 },
-  chips: { flexDirection: 'row', gap: 8, marginBottom: 12 },
-  chip: { paddingHorizontal: 12, paddingVertical: 6, borderRadius: 16, borderWidth: 1, borderColor: '#d1d5db' },
-  chipActive: { backgroundColor: '#2563eb', borderColor: '#2563eb' },
-  chipText: { fontSize: 14, color: '#374151' },
-  chipTextActive: { color: '#fff', fontWeight: '600' },
-  item: { flexDirection: 'row', alignItems: 'center', paddingVertical: 12, borderBottomWidth: StyleSheet.hairlineWidth, borderBottomColor: '#e5e7eb' },
+  title: { fontSize: 20, fontWeight: '700', color: colors.text },
+  close: { fontSize: 15, fontWeight: '600', color: colors.textTertiary },
+  caption: { fontSize: 13, color: colors.textTertiary, marginBottom: 8 },
+  chips: { flexDirection: 'row', gap: 8, marginBottom: 8 },
+  chip: { paddingHorizontal: 14, paddingVertical: 8, borderRadius: 18, backgroundColor: colors.grey100 },
+  chipActive: { backgroundColor: colors.primary },
+  chipText: { fontSize: 14, fontWeight: '500', color: colors.textSub },
+  chipTextActive: { color: colors.white, fontWeight: '600' },
+  item: { flexDirection: 'row', alignItems: 'center', paddingVertical: 14 },
   itemBody: { flex: 1, marginRight: 12 },
-  name: { fontSize: 16, fontWeight: '600' },
-  relation: { fontSize: 13, fontWeight: '400', color: '#6b7280' },
-  detail: { fontSize: 13, color: '#4b5563', marginTop: 4 },
-  ratioBadge: { paddingHorizontal: 10, paddingVertical: 4, borderRadius: 12 },
-  ratioText: { color: '#fff', fontSize: 13, fontWeight: '700' },
+  name: { fontSize: 17, fontWeight: '600', color: colors.text },
+  relation: { fontSize: 13, fontWeight: '400', color: colors.textTertiary },
+  detail: { fontSize: 13, color: colors.textSub, marginTop: 4 },
+  ratioBadge: { paddingHorizontal: 10, paddingVertical: 5, borderRadius: 8 },
+  ratioText: { color: colors.white, fontSize: 13, fontWeight: '700' },
   empty: { alignItems: 'center', paddingVertical: 32 },
-  emptyText: { fontSize: 15, color: '#6b7280' },
-  errorText: { fontSize: 14, color: '#b91c1c', textAlign: 'center' },
-  retry: { marginTop: 12, paddingHorizontal: 16, paddingVertical: 8, borderRadius: 8, backgroundColor: '#f3f4f6' },
-  retryText: { fontSize: 14, color: '#111827' },
+  emptyText: { fontSize: 15, color: colors.textTertiary },
+  errorText: { fontSize: 14, color: colors.danger, textAlign: 'center' },
+  retry: { marginTop: 12, paddingHorizontal: 18, paddingVertical: 10, borderRadius: 10, backgroundColor: colors.primaryBg },
+  retryText: { fontSize: 15, fontWeight: '600', color: colors.primary },
 });
