@@ -9,10 +9,10 @@
 
 | 단계 | 내용 | 상태 |
 |---|---|---|
-| 1 | 사람 등록, 만남 기록 CRUD | 서버 완료 |
-| 2 | 카카오맵 연동 (장소 검색, 기억지도) | 서버 완료, 앱 진행 중 |
-| 3 | 사진 EXIF 기반 자동 기록 (Pillow) | 서버 완료, 앱 진행 중 |
-| 4 | AI 메모 자동 분류 (Ollama), 맞춤형 연락 알림 | 서버 완료, 앱 진행 중 |
+| 1 | 사람 등록, 만남 기록 CRUD | 완료 |
+| 2 | 카카오맵 연동 (장소·동네 검색, 기억지도, 내 위치) | 완료 |
+| 3 | 사진 EXIF 기반 자동 기록 (Pillow) | 완료, 실기기 확인 중 |
+| 4 | AI 메모 자동 분류 (Ollama), 맞춤형 연락 알림 | 연락 알림 완료, 메모 분류는 서버만 완료 |
 | 5 | 통합 테스트, 정확도 검증 | 예정 |
 
 ## 기술 스택
@@ -26,6 +26,8 @@
 ## 실행 방법
 
 서버를 먼저 켜고 아이폰 앱을 연결합니다. 앱 실행 방법은 [frontend/README.md](frontend/README.md)를 보세요.
+
+> 앱 명령(`npm install`, `npx expo start`)은 반드시 `frontend/` 폴더에서 실행합니다. 루트에서 실행하면 `ConfigError: The expected package.json path ... does not exist` 오류가 납니다.
 
 ### 서버 (Python 3.12+)
 
@@ -111,9 +113,9 @@ EXIF가 없는 사진은 `taken_at`, 위도·경도가 `null`이므로 직접 �
 | 메서드 | 주소 | 설명 |
 |---|---|---|
 | GET | `/api/places/nearby?lat=&lon=` | 좌표의 주소와 주변 장소 후보 (가까운 순) |
-| GET | `/api/places/search?query=` | 키워드 장소 검색 (`lat`, `lon`을 주면 가까운 순) |
+| GET | `/api/places/search?query=` | 장소 검색. 동네·주소와 맞는 지역(예: 양천구, 인계동)이 먼저, 이어서 키워드 장소 (`lat`, `lon`을 주면 장소는 가까운 순) |
 
-`.env`에 `KAKAO_REST_KEY`가 있어야 합니다.
+`.env`에 `KAKAO_REST_KEY`(카카오 **REST API 키**, 앱의 JavaScript 키와 다름)가 있어야 합니다. 키를 바꾸면 서버를 다시 켭니다.
 
 ### 연락 알림
 
@@ -150,6 +152,8 @@ backend/
     routers/         API 라우터
   tests/
 frontend/            아이폰 앱 (React Native, Expo)
+  App.js             지도 화면
+  src/               화면별 시트, API, 테마(theme.js)
 data/                로컬 DB, 사진 (git 제외)
 ```
 
