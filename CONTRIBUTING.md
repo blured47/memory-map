@@ -52,7 +52,9 @@ source .venv/bin/activate                  # 그 환경 켜기 (터미널 열 �
 pip install -r backend/requirements.txt    # 필요한 라이브러리 설치
 ```
 
-실행 확인: `cd backend && uvicorn app.main:app --reload` → 브라우저에서 http://localhost:8000
+서버 실행 확인: `cd backend && uvicorn app.main:app --reload --host 0.0.0.0` → http://localhost:8000/docs 에서 API 문서가 열리면 성공
+
+앱 실행은 [frontend/README.md](frontend/README.md)를 보세요.
 
 ### 작업할 때마다
 

@@ -1,7 +1,7 @@
 # Memory Map — 개인 인간관계 기억지도
 
 사진과 자유 메모만 올리면 만남 장소·시간·대화 내용이 사람별로 정리되고, 지도 위에 시각화되며,
-평소보다 오래 연락하지 못한 사람을 알려주는 시스템입니다.
+평소보다 오래 연락하지 못한 사람을 알려주는 아이폰 앱입니다.
 
 > 오픈소스기초및설계 3반 9조 — 안태현, 최연성, 임지수
 
@@ -9,35 +9,41 @@
 
 | 단계 | 내용 | 상태 |
 |---|---|---|
-| 1 | 사람 등록, 만남 기록 CRUD | 서버 완료 |
-| 2 | 카카오맵 연동 (장소 검색, 기억지도) | 서버 완료, 앱 진행 중 |
-| 3 | 사진 EXIF 기반 자동 기록 (Pillow) | 서버 완료, 앱 진행 중 |
-| 4 | AI 메모 자동 분류 (Ollama), 맞춤형 연락 알림 | 서버 완료, 앱 진행 중 |
+| 1 | 사람 등록, 만남 기록 CRUD | 완료 |
+| 2 | 카카오맵 연동 (장소·동네 검색, 기억지도, 내 위치) | 완료 |
+| 3 | 사진 EXIF 기반 자동 기록 (Pillow) | 완료, 실기기 확인 중 |
+| 4 | AI 메모 자동 분류 (Ollama), 맞춤형 연락 알림 | 연락 알림 완료, 메모 분류는 서버만 완료 |
 | 5 | 통합 테스트, 정확도 검증 | 예정 |
 
 ## 기술 스택
 
 - 백엔드: Python, FastAPI, SQLAlchemy, SQLite
-- 프론트엔드: HTML / CSS / JavaScript, 카카오맵 JavaScript SDK
+- 앱: React Native (Expo), 카카오맵 JavaScript SDK (WebView)
 - 사진 처리: Pillow (EXIF)
 - AI: Ollama (로컬 LLM — 메모는 외부로 전송하지 않음)
 - 배포: Docker
 
 ## 실행 방법
 
-### 로컬 (Python 3.12+)
+서버를 먼저 켜고 아이폰 앱을 연결합니다. 앱 실행 방법은 [frontend/README.md](frontend/README.md)를 보세요.
+
+> 앱 명령(`npm install`, `npx expo start`)은 반드시 `frontend/` 폴더에서 실행합니다. 루트에서 실행하면 `ConfigError: The expected package.json path ... does not exist` 오류가 납니다.
+
+### 서버 (Python 3.12+)
 
 ```bash
 python3 -m venv .venv
 source .venv/bin/activate
 pip install -r backend/requirements.txt
-cp .env.example .env   # 카카오 키 입력
-cd backend && uvicorn app.main:app --reload
+cp .env.example .env   # 카카오 REST 키 입력
+cd backend && uvicorn app.main:app --reload --host 0.0.0.0
 ```
 
-브라우저에서 http://localhost:8000 접속, API 문서는 http://localhost:8000/docs
+아이폰이 접속할 수 있도록 `--host 0.0.0.0` 으로 켭니다. 서버에는 로그인 기능이 없어 같은 네트워크의 누구나 기록을 볼 수 있으니 믿을 수 있는 네트워크에서만 켜세요.
 
-### Docker
+API 문서는 http://localhost:8000/docs 에서 볼 수 있습니다.
+
+### 서버 (Docker)
 
 ```bash
 cp .env.example .env
@@ -107,9 +113,9 @@ EXIF가 없는 사진은 `taken_at`, 위도·경도가 `null`이므로 직접 �
 | 메서드 | 주소 | 설명 |
 |---|---|---|
 | GET | `/api/places/nearby?lat=&lon=` | 좌표의 주소와 주변 장소 후보 (가까운 순) |
-| GET | `/api/places/search?query=` | 키워드 장소 검색 (`lat`, `lon`을 주면 가까운 순) |
+| GET | `/api/places/search?query=` | 장소 검색. 동네·주소와 맞는 지역(예: 양천구, 인계동)이 먼저, 이어서 키워드 장소 (`lat`, `lon`을 주면 장소는 가까운 순) |
 
-`.env`에 `KAKAO_REST_KEY`가 있어야 합니다.
+`.env`에 `KAKAO_REST_KEY`(카카오 **REST API 키**, 앱의 JavaScript 키와 다름)가 있어야 합니다. 키를 바꾸면 서버를 다시 켭니다.
 
 ### 연락 알림
 
@@ -140,12 +146,14 @@ ollama serve
 ```
 backend/
   app/
-    main.py          FastAPI 앱, 정적 파일 서빙
+    main.py          FastAPI 앱
     models.py        DB 모델 (Person, Meeting)
     schemas.py       요청/응답 스키마
     routers/         API 라우터
   tests/
-frontend/            index.html, app.js, style.css
+frontend/            아이폰 앱 (React Native, Expo)
+  App.js             지도 화면
+  src/               화면별 시트, API, 테마(theme.js)
 data/                로컬 DB, 사진 (git 제외)
 ```
 

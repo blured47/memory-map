@@ -3,7 +3,6 @@ WORKDIR /app
 COPY backend/requirements.txt backend/requirements.txt
 RUN pip install --no-cache-dir -r backend/requirements.txt
 COPY backend backend
-COPY frontend frontend
 ENV MEMORYMAP_DATA_DIR=/app/data
 EXPOSE 8000
 WORKDIR /app/backend

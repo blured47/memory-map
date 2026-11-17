@@ -54,6 +54,27 @@ def test_meeting_with_multiple_people(client):
     assert client.delete(f"/api/meetings/{mid}").status_code == 204
 
 
+def test_meeting_full_edit_can_clear_location(client):
+    # 앱의 만남 수정은 모든 항목을 한 번에 보내고, 위치를 지우면 null 을 보낸다
+    a = client.post("/api/persons", json={"name": "A"}).json()["id"]
+    mid = client.post("/api/meetings", json={
+        "met_at": "2026-10-20T18:30:00", "place_name": "숭실대 정문",
+        "latitude": 37.4963, "longitude": 126.9575, "person_ids": [a],
+    }).json()["id"]
+
+    r = client.patch(f"/api/meetings/{mid}", json={
+        "met_at": "2026-10-21T09:00:00", "place_name": "집 근처 카페",
+        "latitude": None, "longitude": None, "memo": "다시 만남",
+        "photo_path": None, "person_ids": [a],
+    })
+    assert r.status_code == 200
+    body = r.json()
+    assert body["met_at"] == "2026-10-21T09:00:00"
+    assert body["place_name"] == "집 근처 카페"
+    assert body["latitude"] is None and body["longitude"] is None
+    assert body["memo"] == "다시 만남"
+
+
 def test_meeting_rejects_unknown_person(client):
     r = client.post("/api/meetings", json={"met_at": "2026-10-20T18:30:00", "person_ids": [999]})
     assert r.status_code == 400

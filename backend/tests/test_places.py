@@ -12,6 +12,9 @@ SCHOOL = {
     "id": "2", "place_name": "숭실대학교", "category_group_name": "학교",
     "address_name": "서울 동작구 상도동 511", "x": "126.9573", "y": "37.4964", "distance": "10",
 }
+REGION = {
+    "address_name": "경기 수원시 팔달구 인계동", "address_type": "REGION", "x": "127.0300", "y": "37.2650",
+}
 
 
 @pytest.fixture
@@ -30,6 +33,8 @@ def fake_kakao(monkeypatch):
             return {"documents": {"CE7": [CAFE], "SC4": [SCHOOL, CAFE]}.get(params["category_group_code"], [])}
         if path.endswith("keyword.json"):
             return {"documents": [CAFE]}
+        if path.endswith("address.json"):
+            return {"documents": [REGION] if params["query"] == "인계동" else []}
         raise AssertionError(path)
 
     monkeypatch.setattr(kakao, "_get", fake_get)
@@ -51,7 +56,7 @@ def test_search_by_keyword_near_location(client, fake_kakao):
     res = client.get("/api/places/search", params={"query": "카페", "lat": 37.4963, "lon": 126.9575})
     assert res.status_code == 200
     assert res.json()[0]["name"] == "숭실 카페"
-    path, params = fake_kakao[-1]
+    params = next(params for path, params in fake_kakao if path.endswith("keyword.json"))
     assert params["sort"] == "distance" and params["x"] == 126.9575
 
 
@@ -65,3 +70,12 @@ def test_missing_key_gives_clear_error(client, monkeypatch):
     res = client.get("/api/places/search", params={"query": "카페"})
     assert res.status_code == 503
     assert "KAKAO_REST_KEY" in res.json()["detail"]
+
+
+def test_search_puts_matching_region_first(client, fake_kakao):
+    res = client.get("/api/places/search", params={"query": "인계동"})
+    assert res.status_code == 200
+    body = res.json()
+    assert [p["name"] for p in body] == ["경기 수원시 팔달구 인계동", "숭실 카페"]
+    assert body[0]["category"] == "지역"
+    assert body[0]["latitude"] == 37.265

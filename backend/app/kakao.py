@@ -69,9 +69,33 @@ def nearby_places(lat: float, lon: float, radius: int, limit: int) -> list[dict]
     return sorted(places.values(), key=lambda p: p["distance"] if p["distance"] is not None else 1e9)[:limit]
 
 
+# 주소 검색 결과는 장소 목록 위에 이만큼만 붙인다
+ADDRESS_LIMIT = 3
+
+
+def _address_to_place(doc: dict) -> dict:
+    return {
+        "kakao_id": f"address:{doc['address_name']}",
+        "name": doc["address_name"],
+        "category": "지역" if doc.get("address_type") == "REGION" else "주소",
+        "address": None,
+        "latitude": float(doc["y"]),
+        "longitude": float(doc["x"]),
+        "distance": None,
+        "url": None,
+    }
+
+
+def search_addresses(query: str) -> list[dict]:
+    """동네·주소 검색 (예: 양천구, 인계동 → 그 지역 중심 좌표)"""
+    params = {"query": query, "analyze_type": "similar", "size": ADDRESS_LIMIT}
+    return [_address_to_place(doc) for doc in _get("/v2/local/search/address.json", params)["documents"]]
+
+
 def search_places(query: str, lat: float | None, lon: float | None, limit: int) -> list[dict]:
-    """키워드로 장소 검색. 좌표가 있으면 가까운 순"""
+    """동네·주소와 맞는 지역을 먼저, 이어서 키워드로 찾은 장소. 좌표가 있으면 장소는 가까운 순"""
     params: dict = {"query": query, "size": min(limit, 15)}
     if lat is not None and lon is not None:
         params.update({"x": lon, "y": lat, "sort": "distance"})
-    return [_to_place(doc) for doc in _get("/v2/local/search/keyword.json", params)["documents"]][:limit]
+    places = [_to_place(doc) for doc in _get("/v2/local/search/keyword.json", params)["documents"]]
+    return (search_addresses(query) + places)[:limit]
