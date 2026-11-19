@@ -1,0 +1,661 @@
+[
+  {
+    "id": 1,
+    "people": [
+      "민수"
+    ],
+    "memo": "민수 요즘 클라이밍에 빠졌다고 함. 성수에 있는 클라이밍장 추천해줌. 다음 달에 이직 면접 본다던데 결과 물어봐야지. 생일 3월 14일",
+    "predictions": [
+      {
+        "person": "민수",
+        "category": "interest",
+        "content": "클라이밍에 빠짐",
+        "date": null
+      },
+      {
+        "person": "민수",
+        "category": "recommendation",
+        "content": "성수에 있는 클라이밍장 추천",
+        "date": null
+      },
+      {
+        "person": "민수",
+        "category": "question",
+        "content": "이직 면접 결과 물어봐야 함",
+        "date": null
+      },
+      {
+        "person": "민수",
+        "category": "anniversary",
+        "content": "생일",
+        "date": "3월 14일"
+      }
+    ],
+    "seconds": 35.7682325419737
+  },
+  {
+    "id": 2,
+    "people": [
+      "서연"
+    ],
+    "memo": "서연이랑 카페감. 요즘 필름카메라 모으는 중이래. 영화 헤어질 결심 꼭 보라고 함",
+    "predictions": [
+      {
+        "person": "서연",
+        "category": "interest",
+        "content": "필름카메라를 모으고 있음",
+        "date": null
+      },
+      {
+        "person": "서연",
+        "category": "recommendation",
+        "content": "영화 헤어질 결심을 추천함",
+        "date": null
+      }
+    ],
+    "seconds": 12.05658354202751
+  },
+  {
+    "id": 3,
+    "people": [
+      "도윤"
+    ],
+    "memo": "도윤 다음 주에 이사한다던데 이사 잘 했는지 물어보기",
+    "predictions": [
+      {
+        "person": "도윤",
+        "category": "question",
+        "content": "이사 잘 했는지 물어보기",
+        "date": null
+      }
+    ],
+    "seconds": 5.616387916030362
+  },
+  {
+    "id": 4,
+    "people": [
+      "하은"
+    ],
+    "memo": "그냥 학교 앞에서 밥 먹음",
+    "predictions": [
+      {
+        "person": "하은",
+        "category": "interest",
+        "content": "학교 앞에서 밥을 먹는 것",
+        "date": null
+      }
+    ],
+    "seconds": 6.092299124924466
+  },
+  {
+    "id": 5,
+    "people": [
+      "준호"
+    ],
+    "memo": "준호 결혼기념일이 10월 3일이라 선물 고민 중이라더라. 요즘 테니스 배움",
+    "predictions": [
+      {
+        "person": "준호",
+        "category": "anniversary",
+        "content": "결혼기념일",
+        "date": "10월 3일"
+      },
+      {
+        "person": "준호",
+        "category": "interest",
+        "content": "테니스 배움",
+        "date": null
+      }
+    ],
+    "seconds": 12.367260082974099
+  },
+  {
+    "id": 6,
+    "people": [
+      "지민",
+      "현우"
+    ],
+    "memo": "지민이랑 현우 만남. 둘 다 요즘 러닝 함. 현우가 망원동 칼국수집 추천해줌",
+    "predictions": [
+      {
+        "person": "지민",
+        "category": "interest",
+        "content": "러닝을 함",
+        "date": null
+      },
+      {
+        "person": "현우",
+        "category": "interest",
+        "content": "러닝을 함",
+        "date": null
+      },
+      {
+        "person": "현우",
+        "category": "recommendation",
+        "content": "망원동 칼국수집",
+        "date": null
+      }
+    ],
+    "seconds": 16.30377291701734
+  },
+  {
+    "id": 7,
+    "people": [
+      "수빈",
+      "예준"
+    ],
+    "memo": "수빈이 토익 시험 다음 주라 결과 물어보기. 예준이는 기타 배우기 시작함",
+    "predictions": [
+      {
+        "person": "수빈",
+        "category": "question",
+        "content": "토익 시험 결과를 물어보기",
+        "date": null
+      },
+      {
+        "person": "예준",
+        "category": "interest",
+        "content": "기타를 배우기 시작함",
+        "date": null
+      }
+    ],
+    "seconds": 12.285281290998682
+  },
+  {
+    "id": 8,
+    "people": [
+      "채원"
+    ],
+    "memo": "채원 생일이 12월 25일이래 ㅋㅋ 크리스마스랑 같음. 요즘 뜨개질에 빠짐🧶",
+    "predictions": [
+      {
+        "person": "채원",
+        "category": "interest",
+        "content": "뜨개질에 빠짐",
+        "date": null
+      },
+      {
+        "person": "채원",
+        "category": "anniversary",
+        "content": "생일",
+        "date": "12월 25일"
+      }
+    ],
+    "seconds": 13.377719624899328
+  },
+  {
+    "id": 9,
+    "people": [
+      "시우"
+    ],
+    "memo": "시우가 책 아주 작은 습관의 힘 추천해줌. 읽어보고 얘기해주기로 함",
+    "predictions": [
+      {
+        "person": "시우",
+        "category": "recommendation",
+        "content": "책 '아주 작은 습관의 힘' 추천",
+        "date": null
+      }
+    ],
+    "seconds": 5.9791221669875085
+  },
+  {
+    "id": 10,
+    "people": [
+      "유나",
+      "태민",
+      "소희"
+    ],
+    "memo": "셋이서 저녁. 유나는 운전면허 따는 중이고 태민이는 다음 달에 군대 감. 소희는 요즘 베이킹함. 태민이 입대 날짜 물어보기",
+    "predictions": [
+      {
+        "person": "유나",
+        "category": "interest",
+        "content": "운전면허를 따고 있음",
+        "date": null
+      },
+      {
+        "person": "태민",
+        "category": "interest",
+        "content": "군대에 가야 함",
+        "date": null
+      },
+      {
+        "person": "소희",
+        "category": "interest",
+        "content": "베이킹을 함",
+        "date": null
+      },
+      {
+        "person": "태민",
+        "category": "question",
+        "content": "입대 날짜",
+        "date": null
+      }
+    ],
+    "seconds": 20.484404000104405
+  },
+  {
+    "id": 11,
+    "people": [
+      "건우"
+    ],
+    "memo": "건우 회사 그만두고 카페 창업 준비한대. 오픈하면 가보기로 함. 오픈 날짜 물어보기",
+    "predictions": [
+      {
+        "person": "건우",
+        "category": "interest",
+        "content": "카페 창업 준비 중",
+        "date": null
+      },
+      {
+        "person": "건우",
+        "category": "question",
+        "content": "오픈 날짜",
+        "date": null
+      }
+    ],
+    "seconds": 11.565845208009705
+  },
+  {
+    "id": 12,
+    "people": [
+      "다인"
+    ],
+    "memo": "다인이 성수동 소금빵 맛집 알려줌 ㄹㅇ 맛있다고",
+    "predictions": [
+      {
+        "person": "다인",
+        "category": "recommendation",
+        "content": "성수동 소금빵 맛집",
+        "date": null
+      }
+    ],
+    "seconds": 7.226698708022013
+  },
+  {
+    "id": 13,
+    "people": [
+      "민재",
+      "서윤"
+    ],
+    "memo": "민재랑 서윤이 커플 1주년이 다음 주 토요일이래. 둘 다 캠핑 좋아함",
+    "predictions": [
+      {
+        "person": "민재",
+        "category": "anniversary",
+        "content": "커플 1주년",
+        "date": "다음 주 토요일"
+      },
+      {
+        "person": "서윤",
+        "category": "anniversary",
+        "content": "커플 1주년",
+        "date": "다음 주 토요일"
+      },
+      {
+        "person": "민재",
+        "category": "interest",
+        "content": "캠핑을 좋아함",
+        "date": null
+      },
+      {
+        "person": "서윤",
+        "category": "interest",
+        "content": "캠핑을 좋아함",
+        "date": null
+      }
+    ],
+    "seconds": 22.801990791922435
+  },
+  {
+    "id": 14,
+    "people": [
+      "하준"
+    ],
+    "memo": "오랜만에 봄. 별 얘기 안 하고 게임만 함",
+    "predictions": [
+      {
+        "person": "하준",
+        "category": "interest",
+        "content": "게임을 함",
+        "date": null
+      }
+    ],
+    "seconds": 5.210116375004873
+  },
+  {
+    "id": 15,
+    "people": [
+      "지아"
+    ],
+    "memo": "지아 요즘 일본어 공부함. 내년 4월에 일본 워홀 간다고. 비자 나왔는지 물어보기",
+    "predictions": [
+      {
+        "person": "지아",
+        "category": "interest",
+        "content": "일본어를 공부함",
+        "date": null
+      },
+      {
+        "person": "지아",
+        "category": "recommendation",
+        "content": "일본 워홀 계획",
+        "date": null
+      },
+      {
+        "person": "지아",
+        "category": "question",
+        "content": "비자 나왔는지 물어보기",
+        "date": null
+      }
+    ],
+    "seconds": 17.57610695902258
+  },
+  {
+    "id": 16,
+    "people": [
+      "은우",
+      "서아"
+    ],
+    "memo": "은우는 넷플릭스 흑백요리사 추천함. 서아는 다음 주 발표 있다고 긴장하더라",
+    "predictions": [
+      {
+        "person": "은우",
+        "category": "recommendation",
+        "content": "넷플릭스 흑백요리사 추천함",
+        "date": null
+      },
+      {
+        "person": "서아",
+        "category": "question",
+        "content": "다음 주 발표 있다고 긴장하더라",
+        "date": null
+      }
+    ],
+    "seconds": 10.082029958022758
+  },
+  {
+    "id": 17,
+    "people": [
+      "현서"
+    ],
+    "memo": "현서 어머니 생신이 5월 8일이라 같이 선물 고르기로 함",
+    "predictions": [
+      {
+        "person": "현서",
+        "category": "anniversary",
+        "content": "어머니 생신",
+        "date": "5월 8일"
+      }
+    ],
+    "seconds": 6.757014707894996
+  },
+  {
+    "id": 18,
+    "people": [
+      "도현"
+    ],
+    "memo": "도현이랑 헬스장 다녀옴💪 요즘 바디프로필 준비 중이래. 촬영 언제인지 물어봐야지",
+    "predictions": [
+      {
+        "person": "도현",
+        "category": "interest",
+        "content": "헬스장을 다녀옴",
+        "date": null
+      },
+      {
+        "person": "도현",
+        "category": "interest",
+        "content": "바디프로필 준비 중",
+        "date": null
+      },
+      {
+        "person": "도현",
+        "category": "question",
+        "content": "촬영 언제인지 물어봐야지",
+        "date": null
+      }
+    ],
+    "seconds": 18.611322583979927
+  },
+  {
+    "id": 19,
+    "people": [
+      "가은",
+      "로운"
+    ],
+    "memo": "둘 다 요즘 보드게임 카페 다님. 로운이가 홍대 보드게임 카페 추천해줌",
+    "predictions": [
+      {
+        "person": "가은",
+        "category": "interest",
+        "content": "보드게임 카페 다님",
+        "date": null
+      },
+      {
+        "person": "로운",
+        "category": "interest",
+        "content": "보드게임 카페 다님",
+        "date": null
+      },
+      {
+        "person": "로운",
+        "category": "recommendation",
+        "content": "홍대 보드게임 카페",
+        "date": null
+      }
+    ],
+    "seconds": 16.211835874943063
+  },
+  {
+    "id": 20,
+    "people": [
+      "승민"
+    ],
+    "memo": "승민 공무원 시험 6월에 봄. 합격했는지 꼭 물어보기",
+    "predictions": [
+      {
+        "person": "승민",
+        "category": "question",
+        "content": "공무원 시험 결과를 물어볼 것",
+        "date": null
+      }
+    ],
+    "seconds": 4.987104250001721
+  },
+  {
+    "id": 21,
+    "people": [
+      "예린"
+    ],
+    "memo": "예린이 결혼함🎉 결혼식 11월 9일이었고 신혼여행 발리 다녀옴. 결혼기념일 챙기기",
+    "predictions": [
+      {
+        "person": "예린",
+        "category": "anniversary",
+        "content": "결혼기념일",
+        "date": "11월 9일"
+      }
+    ],
+    "seconds": 7.039795791963115
+  },
+  {
+    "id": 22,
+    "people": [
+      "재윤",
+      "나연",
+      "시온"
+    ],
+    "memo": "재윤 나연 시온이랑 술 마심. 시온이 생일 2월 1일. 재윤이는 요즘 와인 공부",
+    "predictions": [
+      {
+        "person": "재윤",
+        "category": "interest",
+        "content": "와인 공부를 함",
+        "date": null
+      },
+      {
+        "person": "시온",
+        "category": "anniversary",
+        "content": "생일",
+        "date": "2월 1일"
+      }
+    ],
+    "seconds": 10.963549750042148
+  },
+  {
+    "id": 23,
+    "people": [
+      "윤서"
+    ],
+    "memo": "윤서가 유튜브 침착맨 재밌다고 보라고 함 ㅋㅋ",
+    "predictions": [
+      {
+        "person": "윤서",
+        "category": "recommendation",
+        "content": "유튜브 침착맨을 보라고 함",
+        "date": null
+      }
+    ],
+    "seconds": 5.62146712501999
+  },
+  {
+    "id": 24,
+    "people": [
+      "하린"
+    ],
+    "memo": "날씨 좋아서 한강 산책함",
+    "predictions": [
+      {
+        "person": "하린",
+        "category": "interest",
+        "content": "한강 산책을 함",
+        "date": null
+      }
+    ],
+    "seconds": 4.665511416969821
+  },
+  {
+    "id": 25,
+    "people": [
+      "준서"
+    ],
+    "memo": "준서 요즘 주식에 관심 많음. 졸업 프로젝트 마감이 12월이래 끝나면 어땠는지 물어보기",
+    "predictions": [
+      {
+        "person": "준서",
+        "category": "interest",
+        "content": "주식에 관심 있음",
+        "date": null
+      },
+      {
+        "person": "준서",
+        "category": "question",
+        "content": "졸업 프로젝트 마감이 12월이래 끝나면 어땠는지 물어보기",
+        "date": null
+      }
+    ],
+    "seconds": 12.80626354191918
+  },
+  {
+    "id": 26,
+    "people": [
+      "소율",
+      "이안"
+    ],
+    "memo": "소율이가 을지로 노포 고깃집 추천해줌. 이안이랑 다음에 같이 가보기로 함",
+    "predictions": [
+      {
+        "person": "소율",
+        "category": "recommendation",
+        "content": "을지로 노포 고깃집",
+        "date": null
+      },
+      {
+        "person": "이안",
+        "category": "question",
+        "content": "다음에 같이 가보기로 함",
+        "date": null
+      }
+    ],
+    "seconds": 8.861923624994233
+  },
+  {
+    "id": 27,
+    "people": [
+      "태윤"
+    ],
+    "memo": "태윤 강아지 입양함🐶 이름 아직 못 정했다던데 뭘로 정했는지 물어보기",
+    "predictions": [
+      {
+        "person": "태윤",
+        "category": "question",
+        "content": "강아지 이름을 정했는지",
+        "date": null
+      }
+    ],
+    "seconds": 4.9468874169979244
+  },
+  {
+    "id": 28,
+    "people": [
+      "민서"
+    ],
+    "memo": "민서 다음 주 수요일에 수술한대. 회복 잘 했는지 연락해보기",
+    "predictions": [
+      {
+        "person": "민서",
+        "category": "question",
+        "content": "수술 후 회복 잘 했는지 확인하기",
+        "date": null
+      }
+    ],
+    "seconds": 5.283234957954846
+  },
+  {
+    "id": 29,
+    "people": [
+      "지후",
+      "서진"
+    ],
+    "memo": "지후 생일 8월 17일. 서진이는 요즘 클래식 음악 들음. 서진이가 조성진 앨범 추천해줌",
+    "predictions": [
+      {
+        "person": "지후",
+        "category": "anniversary",
+        "content": "생일",
+        "date": "8월 17일"
+      },
+      {
+        "person": "서진",
+        "category": "interest",
+        "content": "클래식 음악을 들음",
+        "date": null
+      },
+      {
+        "person": "서진",
+        "category": "recommendation",
+        "content": "조성진 앨범 추천해줌",
+        "date": null
+      }
+    ],
+    "seconds": 16.474115165998228
+  },
+  {
+    "id": 30,
+    "people": [
+      "나은"
+    ],
+    "memo": "나은이랑 점심. 요즘 회사 일 바쁘대",
+    "predictions": [
+      {
+        "person": "나은",
+        "category": "interest",
+        "content": "회사 일 바쁘다",
+        "date": null
+      }
+    ],
+    "seconds": 4.449045999906957
+  }
+]
