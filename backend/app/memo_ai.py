@@ -2,11 +2,26 @@ import json
 
 import httpx
 
-from .config import OLLAMA_MODEL, OLLAMA_URL
+from .config import OLLAMA_MODEL, OLLAMA_THINK, OLLAMA_URL
+
+# Qwen3 안내: 생각 모드에서 temperature 0(항상 같은 답)을 쓰면 같은 말을 반복할 수 있어 권장값을 쓴다
+THINK_OPTIONS = {"temperature": 0.6, "top_p": 0.95, "top_k": 20}
+FAST_OPTIONS = {"temperature": 0}
 
 # 제안서 5.2: 자유 메모에서 관심사, 추천받은 내용, 다음에 물어볼 내용, 기념일을 추출
 CATEGORIES = ["interest", "recommendation", "question", "anniversary"]
 
+_COMMON = """person은 그 내용의 주인공 이름을 "함께한 사람" 목록에서 그대로 고른다.
+"둘 다", "모두", "다들"처럼 여러 명에 해당하는 내용은 해당하는 사람 수만큼 항목을 각각 만든다.
+content는 짧은 한 문장으로 쓴다.
+date는 기념일에만 쓰고 메모에 적힌 표현 그대로 옮긴다. 연도가 메모에 없으면 연도를 붙이지 않는다. 그 외에는 빈 문자열로 둔다.
+
+예시) 함께한 사람: 가영, 나준
+메모: 둘 다 요즘 요가 한대. 가영 생일 3월 2일.
+결과: 가영 interest "요가를 함", 나준 interest "요가를 함", 가영 anniversary "생일" date "3월 2일"
+"""
+
+# 빠른 모드(기본) 프롬프트. 규칙을 더 넣은 버전은 빠른 모드에서 F1 이 90% → 88% 로 떨어져 쓰지 않는다 (results/ 참고)
 SYSTEM_PROMPT = """너는 만남 메모에서 정보를 뽑아 사람별로 정리하는 도우미다.
 메모에 적힌 내용만 쓰고, 없는 내용을 지어내지 마라. 뽑을 내용이 없으면 items를 빈 배열로 둔다.
 
@@ -16,14 +31,30 @@ category는 다음 넷 중 하나다.
 - question: 다음에 만나면 물어볼 내용, 결과가 궁금한 일 (시험, 면접, 이사 등)
 - anniversary: 생일, 결혼기념일 같은 기념일
 
-person은 그 내용의 주인공 이름을 "함께한 사람" 목록에서 그대로 고른다.
-"둘 다", "모두", "다들"처럼 여러 명에 해당하는 내용은 해당하는 사람 수만큼 항목을 각각 만든다.
-content는 짧은 한 문장으로 쓴다.
-date는 기념일에만 쓰고 메모에 적힌 표현 그대로 옮긴다. 연도가 메모에 없으면 연도를 붙이지 않는다. 그 외에는 빈 문자열로 둔다.
+""" + _COMMON
 
-예시) 함께한 사람: 가영, 나준
-메모: 둘 다 요즘 요가 한대. 가영 생일 3월 2일.
-결과: 가영 interest "요가를 함", 나준 interest "요가를 함", 가영 anniversary "생일" date "3월 2일"
+# 생각 모드 프롬프트. 생각 모드에서는 규칙을 잘 따라서 F1 93% (results/memo-accuracy-think.md)
+THINK_SYSTEM_PROMPT = """너는 만남 메모에서 정보를 뽑아 사람별로 정리하는 도우미다.
+메모에 적힌 내용만 쓰고, 없는 내용을 지어내지 마라. 뽑을 내용이 없으면 items를 빈 배열로 둔다.
+
+category는 다음 넷 중 하나다.
+- interest: 그 사람의 관심사, 취미, 요즘 빠진 것, 새로 시작하거나 꾸준히 하는 일
+- recommendation: 그 사람이 나에게 보라고, 가 보라고, 해 보라고 권한 것 (맛집, 책, 영화 등). 장소나 제목이 있으면 함께 적는다
+- question: 다음에 만나면 물어볼 내용, 결과가 궁금한 일 (시험, 면접, 이사 등)
+- anniversary: 생일, 결혼기념일 같은 기념일
+
+다음은 어디에도 넣지 않는다.
+- 오늘 나와 같이 한 일 (밥 먹음, 산책함, 게임함, 술 마심)
+- 그날의 기분이나 짧은 근황 (요즘 바쁘다, 피곤하다)
+- 그 사람의 계획이나 일정 자체 (추천이 아니다)
+- 내가 할 일이나 같이 하기로 한 약속
+
+하나의 내용이 관심사이면서 물어볼 거리이면 두 항목을 각각 만든다.
+
+""" + _COMMON + """
+예시) 함께한 사람: 다온
+메모: 다온이랑 떡볶이 먹음. 요즘 회사 때문에 정신없대. 다온이 요즘 수영 배우는데 다음 달 대회 나간대. 대회 결과 물어보기
+결과: 다온 interest "수영을 배움", 다온 question "수영 대회 결과"
 """
 
 
@@ -62,17 +93,17 @@ def _chat(memo: str, names: list[str]) -> str:
     body = {
         "model": OLLAMA_MODEL,
         "stream": False,
-        "think": False,
+        "think": OLLAMA_THINK,
         "format": _schema(names),
-        "options": {"temperature": 0},
+        "options": THINK_OPTIONS if OLLAMA_THINK else FAST_OPTIONS,
         "messages": [
-            {"role": "system", "content": SYSTEM_PROMPT},
+            {"role": "system", "content": THINK_SYSTEM_PROMPT if OLLAMA_THINK else SYSTEM_PROMPT},
             {"role": "user", "content": f"함께한 사람: {', '.join(names)}\n\n메모:\n{memo}"},
         ],
     }
     try:
         # 메모는 내 컴퓨터의 Ollama로만 보낸다 (외부 전송 없음)
-        res = httpx.post(f"{OLLAMA_URL}/api/chat", json=body, timeout=180)
+        res = httpx.post(f"{OLLAMA_URL}/api/chat", json=body, timeout=300)
     except httpx.ConnectError as e:
         raise OllamaUnavailable(f"Ollama가 켜져 있지 않습니다 ({OLLAMA_URL})") from e
     except httpx.HTTPError as e:
