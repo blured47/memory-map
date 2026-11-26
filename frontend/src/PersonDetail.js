@@ -2,6 +2,7 @@ import { useState } from 'react';
 import { Pressable, ScrollView, StyleSheet, Text, View } from 'react-native';
 
 import PersonForm from './PersonForm';
+import PersonMemoCard from './PersonMemoCard';
 import { daysUntilBirthday, formatDate, formatDateTime } from './datetime';
 import { colors } from './theme';
 
@@ -63,6 +64,8 @@ export default function PersonDetail({ person, persons, meetings, onSave, onDele
       </View>
 
       {editing && <PersonForm person={person} persons={persons} onSubmit={save} />}
+
+      <PersonMemoCard personId={person.id} />
 
       <Text style={styles.section}>함께한 만남 ({meetings.length})</Text>
       {meetings.length === 0 ? (
