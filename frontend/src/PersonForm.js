@@ -1,6 +1,12 @@
 import { useMemo, useState } from 'react';
 import { ActivityIndicator, Alert, Pressable, ScrollView, StyleSheet, Text, TextInput, View } from 'react-native';
+
+import DateTimeField from './DateTimeField';
+import { parseLocalIso, toDateValue } from './datetime';
 import { colors } from './theme';
+
+// 생일을 처음 고를 때 달력이 열리는 날짜. 오늘부터 시작하면 태어난 해까지 한참 넘겨야 한다
+const DEFAULT_BIRTHDAY = '2000-01-01';
 
 // 사람 등록·수정 폼. person 이 있으면 그 사람을 수정한다.
 // onSubmit(body) 가 끝나면 저장된 것으로 본다 (실패하면 throw)
@@ -8,6 +14,8 @@ export default function PersonForm({ person, persons, onSubmit }) {
   const [name, setName] = useState(person?.name ?? '');
   const [relation, setRelation] = useState(person?.relation ?? '');
   const [cycleDays, setCycleDays] = useState(String(person?.contact_cycle_days ?? 30));
+  const [birthday, setBirthday] = useState(person?.birthday ?? null); // "2000-05-12" 또는 null
+  const [note, setNote] = useState(person?.note ?? '');
   const [submitting, setSubmitting] = useState(false);
 
   // 기존 등록된 모든 관계 목록 (추천 태그용)
@@ -27,6 +35,8 @@ export default function PersonForm({ person, persons, onSubmit }) {
         name: name.trim(),
         relation: relation.trim() || null,
         contact_cycle_days: days >= 1 ? days : 30,
+        birthday,
+        note: note.trim() || null,
       });
     } catch (e) {
       Alert.alert('저장 실패', e.message);
@@ -103,6 +113,35 @@ export default function PersonForm({ person, persons, onSubmit }) {
         <Text style={styles.cycleUnit}>일마다</Text>
       </View>
 
+      <View style={styles.birthdayRow}>
+        <Text style={styles.cycleLabel}>생일:</Text>
+        {birthday ? (
+          <>
+            <DateTimeField
+              mode="date"
+              value={parseLocalIso(birthday)}
+              maximumDate={new Date()}
+              onChange={(d) => setBirthday(toDateValue(d))}
+            />
+            <Pressable onPress={() => setBirthday(null)} hitSlop={8}>
+              <Text style={styles.clearText}>지우기</Text>
+            </Pressable>
+          </>
+        ) : (
+          <Pressable style={styles.addButton} onPress={() => setBirthday(DEFAULT_BIRTHDAY)}>
+            <Text style={styles.addButtonText}>+ 생일 추가</Text>
+          </Pressable>
+        )}
+      </View>
+
+      <TextInput
+        style={[styles.input, styles.note]}
+        placeholder="메모 (예: 좋아하는 음식, 알레르기, 근황)"
+        value={note}
+        onChangeText={setNote}
+        multiline
+      />
+
       <Pressable style={[styles.submit, submitting && styles.disabled]} onPress={handleSubmit} disabled={submitting}>
         {submitting ? (
           <ActivityIndicator size="small" color={colors.white} />
@@ -134,6 +173,11 @@ const styles = StyleSheet.create({
   cycleLabel: { fontSize: 14, color: colors.textSub, marginRight: 8 },
   cycleInput: { width: 64, marginBottom: 0, textAlign: 'center' },
   cycleUnit: { fontSize: 14, color: colors.textSub, marginLeft: 8 },
+  birthdayRow: { flexDirection: 'row', alignItems: 'center', gap: 8, marginBottom: 12 },
+  addButton: { backgroundColor: colors.white, borderRadius: 12, paddingHorizontal: 14, paddingVertical: 10 },
+  addButtonText: { fontSize: 15, color: colors.primary, fontWeight: '600' },
+  clearText: { fontSize: 14, color: colors.textTertiary },
+  note: { minHeight: 80, textAlignVertical: 'top', marginBottom: 12 },
   submit: { backgroundColor: colors.primary, paddingVertical: 15, borderRadius: 14, alignItems: 'center' },
   submitText: { color: colors.white, fontSize: 16, fontWeight: '700' },
   disabled: { opacity: 0.6 },
