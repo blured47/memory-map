@@ -2,8 +2,14 @@ import { useState } from 'react';
 import { Pressable, ScrollView, StyleSheet, Text, View } from 'react-native';
 
 import PersonForm from './PersonForm';
-import { formatDate, formatDateTime } from './datetime';
+import PersonMemoCard from './PersonMemoCard';
+import { daysUntilBirthday, formatDate, formatDateTime } from './datetime';
 import { colors } from './theme';
+
+function birthdayLabel(birthday) {
+  const days = daysUntilBirthday(birthday);
+  return `${formatDate(birthday)} · ${days === 0 ? '오늘이 생일이에요' : `D-${days}`}`;
+}
 
 // 친구 목록에서 이름을 눌렀을 때 보이는 한 사람의 화면: 정보, 수정, 함께한 만남
 export default function PersonDetail({ person, persons, meetings, onSave, onDelete, onOpenMeeting }) {
@@ -31,6 +37,23 @@ export default function PersonDetail({ person, persons, meetings, onSave, onDele
         <Stat label="연락 주기" value={`${person.contact_cycle_days ?? 30}일`} />
       </View>
 
+      {person.birthday || person.note ? (
+        <View style={styles.info}>
+          {person.birthday ? (
+            <View style={styles.infoRow}>
+              <Text style={styles.infoLabel}>생일</Text>
+              <Text style={styles.infoValue}>{birthdayLabel(person.birthday)}</Text>
+            </View>
+          ) : null}
+          {person.note ? (
+            <View style={styles.infoRow}>
+              <Text style={styles.infoLabel}>메모</Text>
+              <Text style={styles.infoValue}>{person.note}</Text>
+            </View>
+          ) : null}
+        </View>
+      ) : null}
+
       <View style={styles.actions}>
         <Pressable style={styles.btnEdit} onPress={() => setEditing(!editing)}>
           <Text style={styles.btnEditText}>{editing ? '수정 취소' : '정보 수정'}</Text>
@@ -41,6 +64,8 @@ export default function PersonDetail({ person, persons, meetings, onSave, onDele
       </View>
 
       {editing && <PersonForm person={person} persons={persons} onSubmit={save} />}
+
+      <PersonMemoCard personId={person.id} />
 
       <Text style={styles.section}>함께한 만남 ({meetings.length})</Text>
       {meetings.length === 0 ? (
@@ -88,6 +113,10 @@ const styles = StyleSheet.create({
   stat: { flex: 1, alignItems: 'center' },
   statValue: { fontSize: 17, fontWeight: '700', color: colors.text },
   statLabel: { fontSize: 12, color: colors.textTertiary, marginTop: 2 },
+  info: { marginTop: 12, gap: 10, paddingHorizontal: 4 },
+  infoRow: { flexDirection: 'row' },
+  infoLabel: { width: 40, fontSize: 14, color: colors.textTertiary },
+  infoValue: { flex: 1, fontSize: 14, color: colors.text, lineHeight: 20 },
   actions: { flexDirection: 'row', gap: 8, marginTop: 12 },
   btnEdit: { flex: 1, backgroundColor: colors.primaryBg, paddingVertical: 13, borderRadius: 12, alignItems: 'center' },
   btnEditText: { color: colors.primary, fontSize: 15, fontWeight: '600' },
