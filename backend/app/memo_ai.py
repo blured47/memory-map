@@ -115,8 +115,15 @@ def _chat(memo: str, names: list[str]) -> str:
 
 def classify_memo(memo: str, names: list[str]) -> list[dict]:
     """메모 → [{person, category, content, date}]"""
+    if not names:
+        return []
+    raw = _chat(memo, names).strip()
+    if raw.startswith("```"):
+        lines = raw.splitlines()
+        if len(lines) >= 2 and lines[-1].strip().startswith("```"):
+            raw = "\n".join(lines[1:-1]).strip()
     try:
-        items = json.loads(_chat(memo, names))["items"]
+        items = json.loads(raw)["items"]
     except (json.JSONDecodeError, KeyError, TypeError) as e:
         raise MemoAIError("AI 응답을 읽지 못했습니다") from e
 

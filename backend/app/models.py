@@ -41,6 +41,9 @@ class Meeting(Base):
     memo: Mapped[str | None] = mapped_column(Text)
     photo_path: Mapped[str | None] = mapped_column(String(300))
     created_at: Mapped[datetime] = mapped_column(DateTime, default=datetime.now)
+    deleted_at: Mapped[datetime | None] = mapped_column(DateTime, default=None)  # 휴지통 (30일 후 완전 삭제)
+    # 영구 삭제한 친구 수. 다른 친구와 함께한 만남은 지우지 않고 '삭제한 친구'로 남긴다
+    removed_people: Mapped[int] = mapped_column(Integer, default=0, server_default="0")
 
     people: Mapped[list[Person]] = relationship(secondary=meeting_people, back_populates="meetings")
     memo_items: Mapped[list["MemoItem"]] = relationship(back_populates="meeting", cascade="all, delete-orphan")

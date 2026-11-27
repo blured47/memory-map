@@ -1,13 +1,14 @@
 from dataclasses import asdict
-from datetime import datetime, timedelta
+from datetime import datetime
 
 from fastapi import APIRouter, Depends, HTTPException, Query, status
 from sqlalchemy import select
-from sqlalchemy.orm import Session
+from sqlalchemy.orm import Session, selectinload
 
 from .. import models, schemas
 from ..contact import DEFAULT_ALERT_RATIO, contact_status
 from ..db import get_db
+from ..trash import delete_person_forever, purge_expired
 
 router = APIRouter(prefix="/api/persons", tags=["persons"])
 reminders_router = APIRouter(prefix="/api/reminders", tags=["persons"])
@@ -18,23 +19,17 @@ def _now() -> datetime:
 
 
 def _purge_expired_deleted(db: Session):
-    """삭제된 지 30일이 지난 인물은 데이터베이스에서 영구 삭제"""
-    cutoff = _now() - timedelta(days=30)
-    expired = db.scalars(
-        select(models.Person).where(models.Person.deleted_at.is_not(None), models.Person.deleted_at <= cutoff)
-    ).all()
-    for p in expired:
-        db.delete(p)
-    if expired:
-        db.commit()
+    """휴지통에서 30일이 지난 친구·만남을 완전히 지운다 (app/trash.py)"""
+    purge_expired(db, _now())
 
 
 def _to_out(person: models.Person, alert_ratio: float = DEFAULT_ALERT_RATIO) -> schemas.PersonOut:
     out = schemas.PersonOut.model_validate(person)
-    if person.meetings:
-        out.last_met_at = max(m.met_at for m in person.meetings)
-        out.meeting_count = len(person.meetings)
-    status_ = contact_status([m.met_at for m in person.meetings], person.contact_cycle_days, _now(), alert_ratio)
+    meetings = [m for m in person.meetings if m.deleted_at is None]  # 휴지통의 만남은 세지 않는다
+    if meetings:
+        out.last_met_at = max(m.met_at for m in meetings)
+        out.meeting_count = len(meetings)
+    status_ = contact_status([m.met_at for m in meetings], person.contact_cycle_days, _now(), alert_ratio)
     for key, value in asdict(status_).items():
         setattr(out, key, value)
     return out
@@ -51,7 +46,10 @@ def _get_or_404(db: Session, person_id: int, include_deleted: bool = False) -> m
 def list_persons(db: Session = Depends(get_db)):
     _purge_expired_deleted(db)
     persons = db.scalars(
-        select(models.Person).where(models.Person.deleted_at.is_(None)).order_by(models.Person.name)
+        select(models.Person)
+        .options(selectinload(models.Person.meetings))
+        .where(models.Person.deleted_at.is_(None))
+        .order_by(models.Person.name)
     ).all()
     return [_to_out(p) for p in persons]
 
@@ -61,7 +59,10 @@ def list_deleted_persons(db: Session = Depends(get_db)):
     """휴지통: 소프트 삭제된 인물 목록 (최근 삭제순)"""
     _purge_expired_deleted(db)
     persons = db.scalars(
-        select(models.Person).where(models.Person.deleted_at.is_not(None)).order_by(models.Person.deleted_at.desc())
+        select(models.Person)
+        .options(selectinload(models.Person.meetings))
+        .where(models.Person.deleted_at.is_not(None))
+        .order_by(models.Person.deleted_at.desc())
     ).all()
     return [_to_out(p) for p in persons]
 
@@ -110,10 +111,9 @@ def restore_person(person_id: int, db: Session = Depends(get_db)):
 
 @router.delete("/{person_id}/permanent", status_code=status.HTTP_204_NO_CONTENT)
 def permanent_delete_person(person_id: int, db: Session = Depends(get_db)):
-    """인물 영구 완전 삭제"""
+    """친구 완전 삭제. 이 친구와만 한 만남은 함께 지우고, 다른 친구도 있던 만남은 '삭제한 친구'로 남긴다"""
     person = _get_or_404(db, person_id, include_deleted=True)
-    db.delete(person)
-    db.commit()
+    delete_person_forever(db, person)
 
 
 @reminders_router.get("", response_model=list[schemas.PersonOut])
@@ -122,6 +122,12 @@ def list_reminders(
     db: Session = Depends(get_db),
 ):
     """평소보다 오래 만나지 못한 사람 (오래 못 본 순)"""
-    persons = [_to_out(p, ratio) for p in db.scalars(select(models.Person).where(models.Person.deleted_at.is_(None))).all()]
+    _purge_expired_deleted(db)
+    query = (
+        select(models.Person)
+        .options(selectinload(models.Person.meetings))
+        .where(models.Person.deleted_at.is_(None))
+    )
+    persons = [_to_out(p, ratio) for p in db.scalars(query).all()]
     due = [p for p in persons if p.needs_contact]
     return sorted(due, key=lambda p: p.overdue_ratio, reverse=True)

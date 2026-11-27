@@ -38,8 +38,8 @@ def _to_place(doc: dict) -> dict:
     return {
         "kakao_id": doc["id"],
         "name": doc["place_name"],
-        "category": doc.get("category_group_name") or doc.get("category_name", "").split(" > ")[-1],
-        "address": doc.get("road_address_name") or doc.get("address_name"),
+        "category": doc.get("category_group_name") or doc.get("category_name", "").split(" > ")[-1] or None,
+        "address": doc.get("road_address_name") or doc.get("address_name") or None,
         "latitude": float(doc["y"]),
         "longitude": float(doc["x"]),
         "distance": int(doc["distance"]) if doc.get("distance") else None,
