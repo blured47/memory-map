@@ -1,5 +1,6 @@
 from dataclasses import dataclass
 from datetime import datetime
+import math
 
 from PIL import Image
 from pillow_heif import register_heif_opener
@@ -20,12 +21,23 @@ class PhotoInfo:
     longitude: float | None = None
 
 
+def _decode_text(value) -> str:
+    if isinstance(value, bytes):
+        return value.decode("ascii", errors="ignore")
+    return str(value)
+
+
 def _parse_datetime(value) -> datetime | None:
-    # EXIF 시각 형식: "2026:10:20 18:30:00"
-    try:
-        return datetime.strptime(str(value).strip("\x00 "), "%Y:%m:%d %H:%M:%S")
-    except ValueError:
-        return None
+    # EXIF 시각 형식: "2026:10:20 18:30:00" (일부 기기는 '-' 구분이나 밀리초·시간대가 붙기도 함)
+    text = _decode_text(value).strip("\x00 ")
+    if len(text) > 19 and text[19] in (".", "+", "-", "Z"):
+        text = text[:19]
+    for fmt in ("%Y:%m:%d %H:%M:%S", "%Y-%m-%d %H:%M:%S"):
+        try:
+            return datetime.strptime(text, fmt)
+        except ValueError:
+            continue
+    return None
 
 
 def _to_degrees(dms, ref) -> float | None:
@@ -34,7 +46,9 @@ def _to_degrees(dms, ref) -> float | None:
         degrees = float(dms[0]) + float(dms[1]) / 60 + float(dms[2]) / 3600
     except (TypeError, ValueError, IndexError, ZeroDivisionError):
         return None
-    return -degrees if str(ref).upper().startswith(("S", "W")) else degrees
+    if not math.isfinite(degrees):
+        return None
+    return -degrees if _decode_text(ref).strip("\x00 ").upper().startswith(("S", "W")) else degrees
 
 
 def read_photo_info(image: Image.Image) -> PhotoInfo:

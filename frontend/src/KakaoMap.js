@@ -1,5 +1,5 @@
 import { forwardRef, useEffect, useImperativeHandle, useRef, useState } from 'react';
-import { StyleSheet, Text, View } from 'react-native';
+import { Pressable, StyleSheet, Text, View } from 'react-native';
 import { WebView } from 'react-native-webview';
 import { colors } from './theme';
 
@@ -58,13 +58,31 @@ const mapHtml = (key) => `<!DOCTYPE html>
 
     function render() {
       overlays.forEach(function (o) { o.setMap(null); });
+      var list = pending || [];
+      var groups = {};
+      list.forEach(function (m) {
+        var key = m.lat.toFixed(6) + ',' + m.lng.toFixed(6);
+        groups[key] = (groups[key] || 0) + 1;
+      });
+      var seen = {};
       var bounds = new kakao.maps.LatLngBounds();
-      overlays = (pending || []).map(function (m) {
+      overlays = list.map(function (m) {
+        var key = m.lat.toFixed(6) + ',' + m.lng.toFixed(6);
+        var count = groups[key];
+        var idx = seen[key] || 0;
+        seen[key] = idx + 1;
+        var lat = m.lat, lng = m.lng;
+        if (count > 1) {
+          var angle = (2 * Math.PI * idx) / count;
+          var r = 0.00012;
+          lat += r * Math.sin(angle);
+          lng += r * Math.cos(angle);
+        }
         var el = document.createElement('div');
         el.className = m.photoUrl ? 'pin' : 'pin dot';
-        if (m.photoUrl) el.style.backgroundImage = 'url("' + m.photoUrl + '")';
+        if (m.photoUrl) el.style.backgroundImage = 'url(' + JSON.stringify(m.photoUrl) + ')';
         el.onclick = function () { post({ type: 'marker', id: m.id }); };
-        var pos = new kakao.maps.LatLng(m.lat, m.lng);
+        var pos = new kakao.maps.LatLng(lat, lng);
         bounds.extend(pos);
         return new kakao.maps.CustomOverlay({ map: map, position: pos, content: el, clickable: true });
       });
@@ -113,12 +131,18 @@ const KakaoMap = forwardRef(function KakaoMap({ markers = [], onMarkerPress }, r
   }));
 
   useEffect(() => {
+    if (!KAKAO_JS_KEY || ready) return;
     const t = setTimeout(() => {
       setError((prev) => prev || '지도 초기화 시간 초과 (SDK 추가 리소스 로드 실패 가능성)');
     }, 8000);
-    if (ready) clearTimeout(t);
     return () => clearTimeout(t);
   }, [ready]);
+
+  const reloadMap = () => {
+    setError(null);
+    setReady(false);
+    webView.current?.reload();
+  };
 
   // 마커가 처음 생길 때만 모든 마커가 보이게 맞추고, 이후 갱신 때는 화면을 움직이지 않는다
   useEffect(() => {
@@ -172,6 +196,9 @@ const KakaoMap = forwardRef(function KakaoMap({ markers = [], onMarkerPress }, r
       {error && (
         <View style={styles.errorBox}>
           <Text style={styles.errorText}>{error}</Text>
+          <Pressable style={styles.retryButton} onPress={reloadMap}>
+            <Text style={styles.retryText}>다시 로드</Text>
+          </Pressable>
         </View>
       )}
     </View>
@@ -184,6 +211,8 @@ const styles = StyleSheet.create({
   container: { flex: 1 },
   center: { flex: 1, alignItems: 'center', justifyContent: 'center', padding: 24 },
   message: { fontSize: 16, textAlign: 'center' },
-  errorBox: { position: 'absolute', left: 16, right: 16, top: 120, backgroundColor: colors.danger, padding: 14, borderRadius: 12 },
+  errorBox: { position: 'absolute', left: 16, right: 16, bottom: 80, backgroundColor: colors.danger, padding: 14, borderRadius: 12, gap: 10 },
   errorText: { color: colors.white, fontSize: 14 },
+  retryButton: { alignSelf: 'flex-start', backgroundColor: 'rgba(255,255,255,0.2)', paddingHorizontal: 12, paddingVertical: 6, borderRadius: 8 },
+  retryText: { color: colors.white, fontSize: 13, fontWeight: '600' },
 });

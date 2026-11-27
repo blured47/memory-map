@@ -39,7 +39,15 @@ cp .env.example .env   # 카카오 REST 키 입력
 cd backend && uvicorn app.main:app --reload --host 0.0.0.0
 ```
 
-아이폰이 접속할 수 있도록 `--host 0.0.0.0` 으로 켭니다. 서버에는 로그인 기능이 없어 같은 네트워크의 누구나 기록을 볼 수 있으니 믿을 수 있는 네트워크에서만 켜세요.
+아이폰이 접속할 수 있도록 `--host 0.0.0.0` 으로 켭니다.
+
+**접근 토큰(권장)**: `.env` 에 `MEMORYMAP_API_TOKEN` 을 넣으면 같은 토큰을 가진 앱만 기록을 읽고 쓸 수 있습니다. 넣지 않으면 같은 네트워크의 누구나 기록을 볼 수 있으니 믿을 수 있는 네트워크에서만 켜세요.
+
+```bash
+python3 -c "import secrets; print(secrets.token_urlsafe(24))"   # 나온 값을 .env 의 MEMORYMAP_API_TOKEN 에
+```
+
+앱에서는 오른쪽 위 **설정(톱니바퀴)** 에서 서버 주소와 토큰을 넣고 **연결 확인** 을 누릅니다. 와이파이가 바뀌어 서버 IP가 달라져도 앱을 다시 빌드할 필요 없이 여기서 고칩니다.
 
 API 문서는 http://localhost:8000/docs 에서 볼 수 있습니다.
 
@@ -55,6 +63,8 @@ docker compose up --build
 ```bash
 cd backend && pytest
 ```
+
+`tests/test_hardening.py` 는 접근 토큰, 버려진 사진 정리, AI 분류 중 메모가 바뀌거나 만남이 지워진 경우를 확인합니다.
 
 `tests/test_integration.py` 는 사진 업로드 → 친구 등록 → 만남 기록 → AI 메모 분류 → 카드 수정 → 연락 알림 → 삭제·복구까지 앱의 전체 흐름을 한 번에 확인하는 통합 테스트입니다. AI(Ollama)는 가짜 응답으로 바꿔서 실행하므로 Ollama 없이도 돌아갑니다.
 
@@ -75,6 +85,8 @@ cd backend && python -m evaluation.evaluate --limit 3  # 앞의 3개만 빠르�
 빠른 모드에 규칙을 더 넣은 프롬프트는 F1 88%로 오히려 떨어져 쓰지 않습니다 ([results/memo-accuracy-after.md](results/memo-accuracy-after.md)).
 
 ## API
+
+모든 API는 `MEMORYMAP_API_TOKEN` 을 설정했을 때 `Authorization: Bearer <토큰>` 헤더가 필요합니다. 상태 확인 `GET /api/health` 만 토큰 없이 됩니다 (`auth_required` 로 토큰이 필요한지 알려줌).
 
 서버 실행 후 http://localhost:8000/docs 에서 전체 API 설명을 보고 직접 요청을 보내 테스트할 수 있습니다.
 
@@ -101,7 +113,10 @@ cd backend && python -m evaluation.evaluate --limit 3  # 앞의 3개만 빠르�
 | POST | `/api/meetings` | 만남 추가 (`person_ids`에 함께한 사람 1명 이상) |
 | GET | `/api/meetings/{id}` | 만남 상세 |
 | PATCH | `/api/meetings/{id}` | 만남 수정 (보낸 항목만 변경) |
-| DELETE | `/api/meetings/{id}` | 만남 삭제 |
+| DELETE | `/api/meetings/{id}` | 만남을 휴지통으로 (30일 뒤 자동 완전 삭제) |
+| GET | `/api/meetings/deleted` | 휴지통의 만남 (최근 삭제순) |
+| POST | `/api/meetings/{id}/restore` | 휴지통에서 복구 |
+| DELETE | `/api/meetings/{id}/permanent` | 휴지통의 만남을 완전히 삭제 (사진·AI 카드 포함) |
 
 ```json
 // POST /api/meetings
@@ -115,6 +130,8 @@ cd backend && python -m evaluation.evaluate --limit 3  # 앞의 3개만 빠르�
 }
 ```
 
+친구를 완전히 삭제하면(휴지통에서 직접, 또는 30일 뒤 자동) 그 친구와만 한 만남은 함께 지워지고, 다른 친구도 있던 만남은 남아 응답의 `removed_people`(삭제한 친구 수)로 표시됩니다. 규칙은 `backend/app/trash.py` 에 있습니다.
+
 `place_name`이 `null`이면 장소 미지정, 위도·경도는 없으면 생략할 수 있습니다.
 
 ### 사진
@@ -122,7 +139,9 @@ cd backend && python -m evaluation.evaluate --limit 3  # 앞의 3개만 빠르�
 | 메서드 | 주소 | 설명 |
 |---|---|---|
 | POST | `/api/photos` | 사진 업로드 (`file`, 20MB 이하, HEIC 지원) → 촬영 시각 `taken_at`, 위도·경도, `photo_path` 반환 |
-| GET | `/api/photos/{photo_path}` | 저장된 사진 (WebP, 위치 정보 제거됨) |
+| GET | `/api/photos/{photo_path}` | 저장된 사진 (WebP, 위치 정보 제거됨). 토큰을 쓰면 `?token=` 으로도 받을 수 있음 |
+
+올리고 나서 어느 만남에도 붙이지 않은 사진(기록을 취소한 경우)은 하루가 지나면 다음 업로드 때 지워지고, 만남을 지우면 그 사진도 함께 지워집니다.
 
 EXIF가 없는 사진은 `taken_at`, 위도·경도가 `null`이므로 직접 입력합니다. 만남에 사진을 붙일 때는 받은 `photo_path`를 `POST /api/meetings`에 함께 보냅니다.
 
@@ -147,7 +166,7 @@ EXIF가 없는 사진은 `taken_at`, 위도·경도가 `null`이므로 직접 �
 
 | 메서드 | 주소 | 설명 |
 |---|---|---|
-| POST | `/api/meetings/{id}/classify` | 만남 메모를 AI로 분류해 사람별 카드에 저장 (다시 실행하면 새로 분류, 20초 안팎 소요) |
+| POST | `/api/meetings/{id}/classify` | 만남 메모를 AI로 분류해 사람별 카드에 저장 (다시 실행하면 새로 분류, 20초 안팎 소요). 분류 중 메모가 바뀌면 409, 만남이 지워지면 404 |
 | GET | `/api/persons/{id}/card` | 사람별 카드: 관심사, 추천받은 내용, 다음에 물어볼 내용, 기념일 |
 | PATCH | `/api/memo-items/{id}` | 분류 결과 수정 |
 | DELETE | `/api/memo-items/{id}` | 분류 결과 삭제 |
@@ -169,6 +188,7 @@ ollama serve
 backend/
   app/
     main.py          FastAPI 앱
+    auth.py          접근 토큰 확인 (선택)
     models.py        DB 모델 (Person, Meeting, MemoItem)
     memo_ai.py       Ollama 메모 분류
     schemas.py       요청/응답 스키마
@@ -180,6 +200,7 @@ frontend/            아이폰 앱 (React Native, Expo)
   src/               화면별 시트, API, 테마(theme.js)
 data/                로컬 DB, 사진 (git 제외)
 results/             AI 메모 분류 정확도 측정 결과
+docs/                회의록, 개인정보 처리방침, 출시 점검표
 ```
 
 ## 협업 규칙

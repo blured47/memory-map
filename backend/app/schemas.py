@@ -1,15 +1,29 @@
 from datetime import date, datetime
 from typing import Literal
 
-from pydantic import BaseModel, ConfigDict, Field
+from pydantic import BaseModel, ConfigDict, Field, field_validator, model_validator
+
+
+def _strip_required(value: str | None) -> str | None:
+    if value is None:
+        return None
+    stripped = value.strip()
+    if not stripped:
+        raise ValueError("공백만 입력할 수 없습니다")
+    return stripped
 
 
 class PersonBase(BaseModel):
     name: str = Field(min_length=1, max_length=50)
-    relation: str | None = None
+    relation: str | None = Field(default=None, max_length=50)
     birthday: date | None = None
-    contact_cycle_days: int | None = Field(default=30, ge=1)
+    contact_cycle_days: int | None = Field(default=30, ge=1, le=3650)
     note: str | None = None
+
+    @field_validator("name")
+    @classmethod
+    def _validate_name(cls, v: str) -> str:
+        return _strip_required(v)
 
 
 class PersonCreate(PersonBase):
@@ -18,10 +32,15 @@ class PersonCreate(PersonBase):
 
 class PersonUpdate(BaseModel):
     name: str | None = Field(default=None, min_length=1, max_length=50)
-    relation: str | None = None
+    relation: str | None = Field(default=None, max_length=50)
     birthday: date | None = None
-    contact_cycle_days: int | None = Field(default=None, ge=1)
+    contact_cycle_days: int | None = Field(default=None, ge=1, le=3650)
     note: str | None = None
+
+    @field_validator("name")
+    @classmethod
+    def _validate_name(cls, v: str | None) -> str | None:
+        return _strip_required(v)
 
 
 class PersonOut(PersonBase):
@@ -47,13 +66,23 @@ class PersonBrief(BaseModel):
     name: str
 
 
+def _check_coords_pair(latitude: float | None, longitude: float | None) -> None:
+    if (latitude is None) != (longitude is None):
+        raise ValueError("위도와 경도는 함께 입력하거나 함께 비워야 합니다")
+
+
 class MeetingBase(BaseModel):
     met_at: datetime
-    place_name: str | None = None
+    place_name: str | None = Field(default=None, max_length=200)
     latitude: float | None = Field(default=None, ge=-90, le=90)
     longitude: float | None = Field(default=None, ge=-180, le=180)
     memo: str | None = None
     photo_path: str | None = None
+
+    @model_validator(mode="after")
+    def _validate_coords(self):
+        _check_coords_pair(self.latitude, self.longitude)
+        return self
 
 
 class MeetingCreate(MeetingBase):
@@ -62,12 +91,17 @@ class MeetingCreate(MeetingBase):
 
 class MeetingUpdate(BaseModel):
     met_at: datetime | None = None
-    place_name: str | None = None
+    place_name: str | None = Field(default=None, max_length=200)
     latitude: float | None = Field(default=None, ge=-90, le=90)
     longitude: float | None = Field(default=None, ge=-180, le=180)
     memo: str | None = None
     photo_path: str | None = None
     person_ids: list[int] | None = Field(default=None, min_length=1)
+
+    @model_validator(mode="after")
+    def _validate_coords(self):
+        _check_coords_pair(self.latitude, self.longitude)
+        return self
 
 
 class MeetingOut(MeetingBase):
@@ -75,6 +109,8 @@ class MeetingOut(MeetingBase):
 
     id: int
     created_at: datetime
+    deleted_at: datetime | None = None
+    removed_people: int = 0  # 영구 삭제한 친구 수 (앱에서 '삭제한 친구'로 표시)
     people: list[PersonBrief]
 
 
@@ -120,7 +156,12 @@ class MemoItemOut(BaseModel):
 class MemoItemUpdate(BaseModel):
     category: MemoCategory | None = None
     content: str | None = Field(default=None, min_length=1)
-    event_date: str | None = None
+    event_date: str | None = Field(default=None, max_length=50)
+
+    @field_validator("content")
+    @classmethod
+    def _validate_content(cls, v: str | None) -> str | None:
+        return _strip_required(v)
 
 
 class PersonCard(BaseModel):

@@ -8,11 +8,12 @@ import {
   Modal,
   Platform,
   Pressable,
+  ScrollView,
   StyleSheet,
   Text,
   View,
 } from 'react-native';
-import { Ionicons } from '@expo/vector-icons';
+import Ionicons from '@expo/vector-icons/Ionicons';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
 
 import {
@@ -24,7 +25,7 @@ import {
   restorePerson,
   updatePerson,
 } from './api';
-import { formatDate } from './datetime';
+import { formatDate, parseLocalIso } from './datetime';
 import { MeetingDetail } from './MeetingCard';
 import PersonDetail from './PersonDetail';
 import PersonForm from './PersonForm';
@@ -56,12 +57,14 @@ export default function PersonManagerSheet({
   meetings,
   onMeetingDeleted,
   onMeetingUpdated,
+  initialPersonId, // 연락할 사람 목록에서 눌렀을 때 바로 열 친구
 }) {
   const insets = useSafeAreaInsets();
   const [tab, setTab] = useState('list'); // 'list' | 'trash'
   const [persons, setPersons] = useState([]);
   const [deletedPersons, setDeletedPersons] = useState([]);
   const [loading, setLoading] = useState(false);
+  const [loadError, setLoadError] = useState(null);
   const [collapsedRelations, setCollapsedRelations] = useState(new Set());
   const [sortMode, setSortMode] = useState('name'); // 'name' | 'count_desc'
   const [groupOrder, setGroupOrder] = useState([]);
@@ -84,8 +87,10 @@ export default function PersonManagerSheet({
       const [pList, dList] = await Promise.all([fetchPersons(), fetchDeletedPersons()]);
       setPersons(pList);
       setDeletedPersons(dList);
+      setLoadError(null);
     } catch (e) {
-      Alert.alert('오류', e.message);
+      setLoadError(e.message);
+      if (quiet) Alert.alert('오류', e.message);
     } finally {
       setLoading(false);
     }
@@ -94,8 +99,10 @@ export default function PersonManagerSheet({
   useEffect(() => {
     if (visible) {
       loadData();
+      setTab('list');
+      setPersonId(initialPersonId ?? null);
     }
-  }, [visible]);
+  }, [visible, initialPersonId]);
 
   useEffect(() => {
     AsyncStorage.getItem(GROUP_ORDER_KEY)
@@ -157,6 +164,7 @@ export default function PersonManagerSheet({
     setPersonId(null);
     setMeetingId(null);
     setReordering(false);
+    setShowAddForm(false);
     onClose();
   };
 
@@ -201,7 +209,7 @@ export default function PersonManagerSheet({
   const handlePermanentDelete = (target) => {
     Alert.alert(
       '영구 완전 삭제',
-      `'${target.name}' 님을 데이터베이스에서 완전히 삭제하시겠습니까?\n이 작업은 되돌릴 수 없습니다.`,
+      `'${target.name}' 님을 완전히 삭제할까요? 되돌릴 수 없어요.\n\n· ${target.name} 님과만 한 만남 기록도 함께 삭제돼요\n· 다른 친구도 함께한 만남은 남고, '삭제한 친구'로 표시돼요`,
       [
         { text: '취소', style: 'cancel' },
         {
@@ -290,80 +298,81 @@ export default function PersonManagerSheet({
 
       {reordering && <Text style={styles.orderHint}>화살표를 눌러 그룹 순서를 바꾸세요. 이 기기에 저장돼요.</Text>}
 
-      {showAddForm && (
-        <View style={styles.formWrap}>
+      {showAddForm ? (
+        <ScrollView style={styles.flex} contentContainerStyle={styles.formScroll} keyboardShouldPersistTaps="handled">
           <PersonForm persons={persons} onSubmit={addPerson} />
-        </View>
-      )}
-
-      {/* 관계별 클러스터링 목록 */}
-      <FlatList
-        data={clusteredPersons}
-        keyExtractor={(item) => item.relation}
-        contentContainerStyle={styles.listContainer}
-        keyboardShouldPersistTaps="handled"
-        ListEmptyComponent={
-          <View style={styles.empty}>
-            <Text style={styles.emptyText}>등록된 친구가 없습니다.</Text>
-          </View>
-        }
-        renderItem={({ item, index }) => {
-          const isCollapsed = reordering || collapsedRelations.has(item.relation);
-          return (
-            <View style={styles.clusterBox}>
-              <Pressable
-                style={styles.clusterHeader}
-                onPress={() => !reordering && toggleCollapse(item.relation)}
-              >
-                <View style={styles.clusterTitleRow}>
-                  {!reordering && (
-                    <Ionicons name={isCollapsed ? 'chevron-forward' : 'chevron-down'} size={16} color={colors.textTertiary} />
-                  )}
-                  <Text style={styles.clusterName}>{item.relation}</Text>
-                  <View style={styles.clusterCountBadge}>
-                    <Text style={styles.clusterCountText}>{item.data.length}명</Text>
+        </ScrollView>
+      ) : (
+        /* 관계별 클러스터링 목록 */
+        <FlatList
+          data={clusteredPersons}
+          keyExtractor={(item) => item.relation}
+          contentContainerStyle={styles.listContainer}
+          keyboardShouldPersistTaps="handled"
+          ListEmptyComponent={
+            <View style={styles.empty}>
+              <Text style={styles.emptyText}>등록된 친구가 없습니다.</Text>
+            </View>
+          }
+          renderItem={({ item, index }) => {
+            const isCollapsed = reordering || collapsedRelations.has(item.relation);
+            return (
+              <View style={styles.clusterBox}>
+                <Pressable
+                  style={styles.clusterHeader}
+                  disabled={reordering}
+                  onPress={() => toggleCollapse(item.relation)}
+                >
+                  <View style={styles.clusterTitleRow}>
+                    {!reordering && (
+                      <Ionicons name={isCollapsed ? 'chevron-forward' : 'chevron-down'} size={16} color={colors.textTertiary} />
+                    )}
+                    <Text style={styles.clusterName}>{item.relation}</Text>
+                    <View style={styles.clusterCountBadge}>
+                      <Text style={styles.clusterCountText}>{item.data.length}명</Text>
+                    </View>
                   </View>
-                </View>
-                {reordering && (
-                  <View style={styles.orderButtons}>
-                    {[
-                      ['chevron-up', -1, index === 0],
-                      ['chevron-down', 1, index === clusteredPersons.length - 1],
-                    ].map(([icon, offset, disabled]) => (
-                      <Pressable
-                        key={icon}
-                        style={[styles.orderButton, disabled && styles.orderButtonDisabled]}
-                        disabled={disabled}
-                        onPress={() => moveGroup(index, offset)}
-                        hitSlop={4}
-                      >
-                        <Ionicons name={icon} size={18} color={colors.textSub} />
+                  {reordering && (
+                    <View style={styles.orderButtons}>
+                      {[
+                        ['chevron-up', -1, index === 0],
+                        ['chevron-down', 1, index === clusteredPersons.length - 1],
+                      ].map(([icon, offset, disabled]) => (
+                        <Pressable
+                          key={icon}
+                          style={[styles.orderButton, disabled && styles.orderButtonDisabled]}
+                          disabled={disabled}
+                          onPress={() => moveGroup(index, offset)}
+                          hitSlop={4}
+                        >
+                          <Ionicons name={icon} size={18} color={colors.textSub} />
+                        </Pressable>
+                      ))}
+                    </View>
+                  )}
+                </Pressable>
+
+                {!isCollapsed && (
+                  <View style={styles.clusterMembers}>
+                    {item.data.map((p) => (
+                      <Pressable key={p.id} style={styles.personCard} onPress={() => setPersonId(p.id)}>
+                        <View style={styles.personInfo}>
+                          <Text style={styles.personName}>{p.name}</Text>
+                          <Text style={styles.personMeta}>
+                            만남 {p.meeting_count || 0}회 · 마지막 만남{' '}
+                            {p.last_met_at ? formatDate(p.last_met_at) : '기록 없음'}
+                          </Text>
+                        </View>
+                        <Ionicons name="chevron-forward" size={18} color={colors.textDisabled} />
                       </Pressable>
                     ))}
                   </View>
                 )}
-              </Pressable>
-
-              {!isCollapsed && (
-                <View style={styles.clusterMembers}>
-                  {item.data.map((p) => (
-                    <Pressable key={p.id} style={styles.personCard} onPress={() => setPersonId(p.id)}>
-                      <View style={styles.personInfo}>
-                        <Text style={styles.personName}>{p.name}</Text>
-                        <Text style={styles.personMeta}>
-                          만남 {p.meeting_count || 0}회 · 마지막 만남{' '}
-                          {p.last_met_at ? formatDate(p.last_met_at) : '기록 없음'}
-                        </Text>
-                      </View>
-                      <Ionicons name="chevron-forward" size={18} color={colors.textDisabled} />
-                    </Pressable>
-                  ))}
-                </View>
-              )}
-            </View>
-          );
-        }}
-      />
+              </View>
+            );
+          }}
+        />
+      )}
     </View>
   );
 
@@ -378,8 +387,7 @@ export default function PersonManagerSheet({
         </View>
       }
       renderItem={({ item }) => {
-        // 서버 시각의 마이크로초는 기기마다 해석이 달라 초까지만 쓴다
-        const deletedAt = new Date(item.deleted_at.slice(0, 19));
+        const deletedAt = parseLocalIso(item.deleted_at);
         const daysPassed = Math.floor((new Date() - deletedAt) / (1000 * 60 * 60 * 24));
         const daysLeft = Math.max(30 - daysPassed, 0);
 
@@ -409,7 +417,7 @@ export default function PersonManagerSheet({
   let body;
   if (meeting) {
     body = (
-      <View style={styles.formWrap}>
+      <View style={styles.detailWrap}>
         <MeetingDetail
           meeting={meeting}
           onClose={() => setMeetingId(null)}
@@ -455,6 +463,13 @@ export default function PersonManagerSheet({
         {loading ? (
           <View style={styles.centerBox}>
             <ActivityIndicator size="large" color={colors.primary} />
+          </View>
+        ) : loadError ? (
+          <View style={styles.empty}>
+            <Text style={styles.errorText}>{loadError}</Text>
+            <Pressable style={styles.retryBtn} onPress={() => loadData()}>
+              <Text style={styles.retryText}>다시 시도</Text>
+            </Pressable>
           </View>
         ) : tab === 'list' ? (
           renderList()
@@ -549,7 +564,11 @@ const styles = StyleSheet.create({
   btnToolActive: { backgroundColor: colors.primary },
   btnToolTextActive: { color: colors.white, fontWeight: '700' },
   orderHint: { fontSize: 13, color: colors.textTertiary, paddingHorizontal: 20, paddingBottom: 8 },
-  formWrap: { paddingHorizontal: 20 },
+  formScroll: { paddingHorizontal: 20, paddingBottom: 20 },
+  detailWrap: { flex: 1, paddingHorizontal: 20 },
+  errorText: { fontSize: 14, color: colors.danger, textAlign: 'center', marginBottom: 12 },
+  retryBtn: { paddingHorizontal: 18, paddingVertical: 10, borderRadius: 10, backgroundColor: colors.primaryBg },
+  retryText: { fontSize: 15, fontWeight: '600', color: colors.primary },
 
   listContainer: { paddingHorizontal: 20, paddingBottom: 20 },
   clusterBox: { marginBottom: 12, backgroundColor: colors.grey50, borderRadius: 16, overflow: 'hidden' },

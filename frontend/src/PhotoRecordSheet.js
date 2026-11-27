@@ -1,4 +1,4 @@
-import { KeyboardAvoidingView, Modal, Platform, Pressable, StyleSheet, Text, View } from 'react-native';
+import { Alert, KeyboardAvoidingView, Modal, Platform, Pressable, StyleSheet, Text, View } from 'react-native';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
 
 import MeetingForm from './MeetingForm';
@@ -9,10 +9,17 @@ export default function PhotoRecordSheet({ draft, onClose, onSaved }) {
   const insets = useSafeAreaInsets();
   const asset = draft?.asset ?? null;
 
+  // 바깥을 실수로 눌러 적던 기록이 사라지지 않게 한 번 묻는다 ('취소' 버튼은 바로 닫는다)
+  const confirmClose = () =>
+    Alert.alert('기록을 그만둘까요?', '작성 중인 내용은 저장되지 않아요.', [
+      { text: '계속 작성', style: 'cancel' },
+      { text: '그만두기', style: 'destructive', onPress: onClose },
+    ]);
+
   return (
     <Modal visible={!!draft} transparent animationType="slide" onRequestClose={onClose}>
       <KeyboardAvoidingView style={styles.flex} behavior={Platform.OS === 'ios' ? 'padding' : undefined}>
-        <Pressable style={styles.backdrop} onPress={onClose} />
+        <Pressable style={styles.backdrop} onPress={confirmClose} accessibilityLabel="기록 닫기" />
         <View style={[styles.sheet, { paddingBottom: insets.bottom + 16 }]}>
           <View style={styles.header}>
             <Text style={styles.title}>{asset ? '사진으로 기록' : '직접 기록'}</Text>

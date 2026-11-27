@@ -1,38 +1,76 @@
 import { File } from 'expo-file-system';
 
-// 백엔드 주소. 폰에서 접속하므로 localhost 가 아닌 PC의 LAN IP 를 써야 합니다. (예: http://192.168.0.10:8000)
-export const API_URL = process.env.EXPO_PUBLIC_API_URL?.replace(/\/+$/, '');
+import { getServerConfig } from './serverConfig';
+
+// 백엔드 주소와 토큰은 앱의 '서버 설정'에서 정한다 (serverConfig.js).
+// 폰에서 접속하므로 localhost 가 아닌 서버 컴퓨터의 LAN IP 를 써야 한다 (예: http://192.168.0.10:8000)
 
 const TIMEOUT_MS = 8000;
 const UPLOAD_TIMEOUT_MS = 60000;
 
-async function request(path, { timeout = TIMEOUT_MS, json, ...options } = {}) {
-  if (!API_URL) throw new Error('EXPO_PUBLIC_API_URL 이 설정되지 않았습니다.');
+// 서버가 보낸 이유를 담은 오류. status 로 409(다시 분류), 401(토큰 오류) 등을 구분한다
+export class ApiError extends Error {
+  constructor(message, status) {
+    super(message);
+    this.status = status;
+  }
+}
 
+async function request(path, { timeout = TIMEOUT_MS, json, server = getServerConfig(), ...options } = {}) {
+  const { url: baseUrl, token } = server;
+  if (!baseUrl) throw new ApiError('서버 주소가 설정되지 않았어요. 오른쪽 위 설정 버튼에서 입력해 주세요.', 0);
+
+  options.headers = { ...options.headers };
+  if (token) options.headers.Authorization = `Bearer ${token}`;
   if (json !== undefined) {
     options.body = JSON.stringify(json);
-    options.headers = { 'Content-Type': 'application/json', ...options.headers };
+    options.headers['Content-Type'] = 'application/json';
   }
 
   const controller = new AbortController();
   const timer = setTimeout(() => controller.abort(), timeout);
   try {
-    const res = await fetch(`${API_URL}${path}`, { ...options, signal: controller.signal });
+    const res = await fetch(`${baseUrl}${path}`, { ...options, signal: controller.signal });
     if (!res.ok) {
       const body = await res.json().catch(() => null);
-      throw new Error(typeof body?.detail === 'string' ? body.detail : `서버 오류 (HTTP ${res.status})`);
+      let detail = null;
+      if (typeof body?.detail === 'string') {
+        detail = body.detail;
+      } else if (Array.isArray(body?.detail) && body.detail.length > 0) {
+        detail = body.detail.map((item) => item?.msg).filter(Boolean).join(', ');
+      }
+      throw new ApiError(detail || `서버 오류 (HTTP ${res.status})`, res.status);
     }
     return res.status === 204 ? null : await res.json();
   } catch (e) {
-    if (e.name === 'AbortError') throw new Error(`서버 응답 없음: ${API_URL}`);
-    if (e instanceof TypeError) throw new Error(`서버에 연결할 수 없습니다: ${API_URL}`);
+    if (e.name === 'AbortError') throw new ApiError(`서버 응답 없음: ${baseUrl}`, 0);
+    if (e instanceof TypeError) throw new ApiError(`서버에 연결할 수 없습니다: ${baseUrl}`, 0);
     throw e;
   } finally {
     clearTimeout(timer);
   }
 }
 
-export const photoUrl = (photoPath) => (photoPath ? `${API_URL}/api/photos/${photoPath}` : null);
+// 지도(WebView)와 <Image> 는 헤더를 붙일 수 없어 토큰을 주소에 붙인다
+export const photoUrl = (photoPath) => {
+  if (!photoPath) return null;
+  const { url, token } = getServerConfig();
+  if (!url) return null;
+  const base = `${url}/api/photos/${photoPath}`;
+  return token ? `${base}?token=${encodeURIComponent(token)}` : base;
+};
+
+// 서버 설정 화면의 '연결 확인': 저장하기 전에 입력한 주소·토큰으로 실제로 접속해 본다
+export async function checkServer(server) {
+  const health = await request('/api/health', { server, timeout: 5000 });
+  if (health?.status !== 'ok') throw new ApiError('Memory Map 서버가 아닌 것 같아요', 0);
+  if (health.auth_required && !server.token) {
+    throw new ApiError('이 서버는 접근 토큰이 필요해요. 서버 .env 의 MEMORYMAP_API_TOKEN 값을 입력해 주세요', 401);
+  }
+  // 토큰이 맞는지는 실제 API 를 한 번 불러 확인한다
+  await request('/api/reminders', { server, timeout: 5000 });
+  return health;
+}
 
 // 평소 만남 주기의 ratio 배 이상 못 만난 사람 (오래 못 본 순)
 export function fetchReminders(ratio) {
@@ -83,8 +121,21 @@ export function updateMeeting(meetingId, meeting) {
   return request(`/api/meetings/${meetingId}`, { method: 'PATCH', json: meeting });
 }
 
+// 휴지통으로 옮긴다 (30일 뒤 서버가 완전히 지운다)
 export function deleteMeeting(meetingId) {
   return request(`/api/meetings/${meetingId}`, { method: 'DELETE' });
+}
+
+export function fetchDeletedMeetings() {
+  return request('/api/meetings/deleted');
+}
+
+export function restoreMeeting(meetingId) {
+  return request(`/api/meetings/${meetingId}/restore`, { method: 'POST' });
+}
+
+export function permanentDeleteMeeting(meetingId) {
+  return request(`/api/meetings/${meetingId}/permanent`, { method: 'DELETE' });
 }
 
 // 사진 위치 주변 장소 후보 → { address, building_name, places: [...] }

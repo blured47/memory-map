@@ -12,10 +12,14 @@ PHOTOS_DIR = DATA_DIR / "photos"
 DATABASE_URL = os.getenv("MEMORYMAP_DATABASE_URL", f"sqlite:///{DATA_DIR / 'memorymap.db'}")
 
 # 메모 분류용 로컬 LLM
-OLLAMA_URL = os.getenv("OLLAMA_URL", "http://localhost:11434")
+OLLAMA_URL = os.getenv("OLLAMA_URL", "http://localhost:11434").rstrip("/")
 OLLAMA_MODEL = os.getenv("OLLAMA_MODEL", "qwen3:8b")
 # 생각 모드: 답하기 전에 먼저 생각해서 규칙을 더 잘 따르지만 느려진다 (OLLAMA_THINK=1 로 켬)
 OLLAMA_THINK = os.getenv("OLLAMA_THINK", "").lower() in ("1", "true", "yes")
 
 # 카카오 REST 키 (좌표→주소, 키워드 검색용). 지도 표시용 JS 키는 앱의 frontend/.env 에 둔다
 KAKAO_REST_KEY = os.getenv("KAKAO_REST_KEY", "")
+
+# 접근 토큰 (선택). 값을 넣으면 앱이 같은 토큰을 보내야만 기록을 읽고 쓸 수 있다.
+# 비워 두면 예전처럼 같은 네트워크의 누구나 접근할 수 있다
+API_TOKEN = os.getenv("MEMORYMAP_API_TOKEN", "").strip()

@@ -20,14 +20,15 @@ export default function DateTimeField({ value, onChange, mode = 'datetime', mini
         locale="ko-KR"
         minimumDate={minimumDate}
         maximumDate={maximumDate}
-        onChange={(event, picked) => picked && onChange(picked)}
+        onValueChange={(event, picked) => picked && onChange(picked)}
       />
     );
   }
 
-  const handle = (event, picked) => {
+  // Android 대화상자: 고르면 onValueChange, 취소하면 onDismiss 가 불린다
+  const handleValue = (event, picked) => {
     setAndroidMode(null);
-    if (event.type === 'set' && picked) onChange(picked);
+    if (picked) onChange(picked);
   };
 
   return (
@@ -51,7 +52,8 @@ export default function DateTimeField({ value, onChange, mode = 'datetime', mini
           is24Hour
           minimumDate={minimumDate}
           maximumDate={maximumDate}
-          onChange={handle}
+          onValueChange={handleValue}
+          onDismiss={() => setAndroidMode(null)}
         />
       )}
     </View>

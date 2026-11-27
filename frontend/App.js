@@ -1,8 +1,8 @@
+import AsyncStorage from '@react-native-async-storage/async-storage';
 import { useCallback, useEffect, useMemo, useRef, useState } from 'react';
-import { ActivityIndicator, Alert, Pressable, StyleSheet, Text, View } from 'react-native';
-import { Ionicons } from '@expo/vector-icons';
+import { ActivityIndicator, Alert, AppState, Pressable, StyleSheet, Text, View } from 'react-native';
+import Ionicons from '@expo/vector-icons/Ionicons';
 import { StatusBar } from 'expo-status-bar';
-import * as ImagePicker from 'expo-image-picker';
 import * as Location from 'expo-location';
 import { SafeAreaProvider, useSafeAreaInsets } from 'react-native-safe-area-context';
 
@@ -11,17 +11,27 @@ import MeetingCard from './src/MeetingCard';
 import MeetingListSheet from './src/MeetingListSheet';
 import PersonManagerSheet from './src/PersonManagerSheet';
 import PhotoRecordSheet from './src/PhotoRecordSheet';
-import ReminderSheet from './src/ReminderSheet';
+import ReminderSheet, { RATIO_OPTIONS } from './src/ReminderSheet';
+import SettingsSheet from './src/SettingsSheet';
 import { fetchMeetings, fetchReminders, photoUrl } from './src/api';
-import { useClassifyStatus } from './src/autoClassify';
+import { clearClassifyStatus, useClassifyStatus } from './src/autoClassify';
+import { pickPhotoFromLibrary } from './src/photoLibrary';
+import { loadServerConfig, useServerConfig } from './src/serverConfig';
 import { colors, radius, shadow } from './src/theme';
 
 const DEFAULT_RATIO = 1.5; // 백엔드 기본값과 같게 맞춤
+const RATIO_KEY = 'reminderRatio'; // 연락 알림 기준 비율은 이 기기에 저장한다
 
 export default function App() {
+  // 저장된 서버 주소를 읽은 뒤에 화면을 띄워야 첫 요청이 옛 주소로 가지 않는다
+  const [configLoaded, setConfigLoaded] = useState(false);
+  useEffect(() => {
+    loadServerConfig().finally(() => setConfigLoaded(true));
+  }, []);
+
   return (
     <SafeAreaProvider>
-      <MemoryMap />
+      {configLoaded ? <MemoryMap /> : <View style={styles.container} />}
     </SafeAreaProvider>
   );
 }
@@ -32,7 +42,9 @@ function MemoryMap() {
 
   const [sheetOpen, setSheetOpen] = useState(false);
   const [personSheetOpen, setPersonSheetOpen] = useState(false);
+  const [focusPersonId, setFocusPersonId] = useState(null); // 친구 목록을 열 때 바로 보여줄 친구
   const [meetingListOpen, setMeetingListOpen] = useState(false);
+  const [settingsOpen, setSettingsOpen] = useState(false);
   const [ratio, setRatio] = useState(DEFAULT_RATIO);
   const [reminders, setReminders] = useState([]);
   const [loading, setLoading] = useState(false);
@@ -45,6 +57,7 @@ function MemoryMap() {
 
   const latestRequest = useRef(0);
   const classify = useClassifyStatus(); // 저장 후 뒤에서 하는 메모 분류 상태
+  const server = useServerConfig(); // 서버 설정이 바뀌면 version 이 올라간다
 
   const load = useCallback(async () => {
     const requestId = ++latestRequest.current;
@@ -59,15 +72,34 @@ function MemoryMap() {
     } finally {
       if (requestId === latestRequest.current) setLoading(false);
     }
-  }, [ratio]);
+    // server.version: 서버 설정을 바꾸면 새 서버에서 다시 불러온다
+  }, [ratio, server.version]);
 
+  const latestMeetingsRequest = useRef(0);
   const loadMeetings = useCallback(async () => {
+    const requestId = ++latestMeetingsRequest.current;
     try {
-      setMeetings(await fetchMeetings());
+      const data = await fetchMeetings();
+      if (requestId === latestMeetingsRequest.current) setMeetings(data);
     } catch {
-      // 서버 연결 오류는 연락 알림 배지에서 이미 보여준다
+      // 서버 연결 오류는 연락 알림 배지와 아래 안내에서 보여준다
     }
+  }, [server.version]);
+
+  // 저장해 둔 연락 알림 기준 비율을 불러온다
+  useEffect(() => {
+    AsyncStorage.getItem(RATIO_KEY)
+      .then((saved) => {
+        const value = Number(saved);
+        if (RATIO_OPTIONS.includes(value)) setRatio(value);
+      })
+      .catch(() => {});
   }, []);
+
+  const changeRatio = (value) => {
+    setRatio(value);
+    AsyncStorage.setItem(RATIO_KEY, String(value)).catch(() => {});
+  };
 
   useEffect(() => {
     load();
@@ -77,17 +109,45 @@ function MemoryMap() {
     loadMeetings();
   }, [loadMeetings]);
 
+  // 다른 앱에 갔다 돌아오면(날짜가 바뀌었거나 서버를 그사이 켰을 수 있다) 다시 불러온다
+  const refreshAll = useRef(() => {});
+  refreshAll.current = () => {
+    load();
+    loadMeetings();
+  };
+  useEffect(() => {
+    const sub = AppState.addEventListener('change', (state) => {
+      if (state === 'active') refreshAll.current();
+    });
+    return () => sub.remove();
+  }, []);
+
   const markers = useMemo(
     () =>
       meetings
         .filter((m) => m.latitude != null && m.longitude != null)
         .map((m) => ({ id: m.id, lat: m.latitude, lng: m.longitude, photoUrl: photoUrl(m.photo_path) })),
-    [meetings],
+    // server.version: 서버 주소·토큰이 바뀌면 사진 주소도 바뀐다
+    [meetings, server.version],
   );
 
   const openSheet = () => {
     setSheetOpen(true);
     load();
+  };
+
+  // iOS 는 시트(Modal)를 닫는 동안 다른 시트를 띄우지 못해, 닫힌 뒤에 친구 화면을 연다
+  const openPersonFromReminder = (id) => {
+    setSheetOpen(false);
+    setTimeout(() => {
+      setFocusPersonId(id);
+      setPersonSheetOpen(true);
+    }, 400);
+  };
+
+  const openPersonList = () => {
+    setFocusPersonId(null);
+    setPersonSheetOpen(true);
   };
 
   const openMeetingList = () => {
@@ -97,14 +157,8 @@ function MemoryMap() {
 
   const pickPhoto = async () => {
     try {
-      // 위치 정보를 지키려고 편집·압축 없이 원본 그대로 고른다.
-      // iOS 는 Current 여야 HEIC 원본 파일이 오고, 기본값(Automatic)은 다시 인코딩하며 EXIF 를 잃는다
-      const result = await ImagePicker.launchImageLibraryAsync({
-        mediaTypes: ['images'],
-        quality: 1,
-        preferredAssetRepresentationMode: ImagePicker.UIImagePickerPreferredAssetRepresentationMode.Current,
-      });
-      if (!result.canceled) setDraft({ asset: result.assets[0] });
+      const asset = await pickPhotoFromLibrary();
+      if (asset) setDraft({ asset });
     } catch (e) {
       Alert.alert('사진을 열 수 없어요', e.message);
     }
@@ -127,7 +181,14 @@ function MemoryMap() {
     load(); // 날짜·사람이 바뀌면 연락 알림도 달라진다
   };
 
+  // 휴지통에서 복구한 만남을 지도와 목록에 되돌린다
+  const handleRestored = (meeting) => {
+    setMeetings((list) => [meeting, ...list.filter((m) => m.id !== meeting.id)]);
+    load();
+  };
+
   const handleDeleted = (id) => {
+    clearClassifyStatus(id);
     setSelectedMeeting(null);
     setMeetings((list) => list.filter((m) => m.id !== id));
     load();
@@ -171,19 +232,53 @@ function MemoryMap() {
         />
 
         <View style={[styles.topBar, { top }]}>
-          <Pressable style={styles.pill} onPress={() => setPersonSheetOpen(true)}>
+          <Pressable style={styles.pill} onPress={openPersonList} accessibilityRole="button">
             <Ionicons name="people" size={16} color={colors.textSub} />
             <Text style={styles.pillText}>친구 목록</Text>
           </Pressable>
-          <Pressable style={styles.pill} onPress={openSheet}>
-            <Text style={styles.pillText}>연락할 사람</Text>
-            <View style={[styles.badge, error && styles.badgeError, !error && !reminders.length && styles.badgeZero]}>
-              <Text style={styles.badgeText}>{error ? '!' : reminders.length}</Text>
-            </View>
-          </Pressable>
+          <View style={styles.topRight}>
+            <Pressable
+              style={styles.pill}
+              onPress={openSheet}
+              accessibilityRole="button"
+              accessibilityLabel={error ? '연락할 사람, 서버 연결 오류' : `연락할 사람 ${reminders.length}명`}
+            >
+              <Text style={styles.pillText}>연락할 사람</Text>
+              <View style={[styles.badge, error && styles.badgeError, !error && !reminders.length && styles.badgeZero]}>
+                <Text style={styles.badgeText}>{error ? '!' : reminders.length}</Text>
+              </View>
+            </Pressable>
+            <Pressable
+              style={styles.iconButton}
+              onPress={() => setSettingsOpen(true)}
+              hitSlop={6}
+              accessibilityRole="button"
+              accessibilityLabel="서버 설정"
+            >
+              <Ionicons name="settings-outline" size={20} color={colors.textSub} />
+            </Pressable>
+          </View>
         </View>
 
-        <Pressable style={styles.locateButton} onPress={goToMyLocation} disabled={locating} hitSlop={6}>
+        {/* 서버에 연결하지 못하면 이유와 함께 설정으로 가는 길을 보여준다 */}
+        {error && (
+          <Pressable style={[styles.errorBanner, { top: top + 52 }]} onPress={() => setSettingsOpen(true)}>
+            <Ionicons name="cloud-offline-outline" size={18} color={colors.danger} />
+            <Text style={styles.errorBannerText} numberOfLines={2}>
+              {error}
+            </Text>
+            <Text style={styles.errorBannerAction}>설정</Text>
+          </Pressable>
+        )}
+
+        <Pressable
+          style={styles.locateButton}
+          onPress={goToMyLocation}
+          disabled={locating}
+          hitSlop={6}
+          accessibilityRole="button"
+          accessibilityLabel="내 위치로 이동"
+        >
           {locating ? (
             <ActivityIndicator size="small" color={colors.primary} />
           ) : (
@@ -218,6 +313,7 @@ function MemoryMap() {
       <PersonManagerSheet
         visible={personSheetOpen}
         onClose={() => setPersonSheetOpen(false)}
+        initialPersonId={focusPersonId}
         onPersonsChanged={handlePersonsChanged}
         meetings={meetings}
         onMeetingDeleted={handleDeleted}
@@ -230,8 +326,12 @@ function MemoryMap() {
         loading={loading}
         error={error}
         ratio={ratio}
-        onChangeRatio={setRatio}
-        onRefresh={load}
+        onChangeRatio={changeRatio}
+        onOpenPerson={openPersonFromReminder}
+        onRefresh={() => {
+          load();
+          loadMeetings();
+        }}
       />
       <MeetingListSheet
         visible={meetingListOpen}
@@ -239,8 +339,10 @@ function MemoryMap() {
         meetings={meetings}
         onDeleted={handleDeleted}
         onUpdated={handleUpdated}
+        onRestored={handleRestored}
       />
       <PhotoRecordSheet draft={draft} onClose={() => setDraft(null)} onSaved={handleSaved} />
+      <SettingsSheet visible={settingsOpen} onClose={() => setSettingsOpen(false)} />
       <MeetingCard
         meeting={selectedMeeting}
         onClose={() => setSelectedMeeting(null)}
@@ -256,6 +358,31 @@ const styles = StyleSheet.create({
   container: { flex: 1, backgroundColor: colors.white },
   mapArea: { flex: 1 },
   topBar: { position: 'absolute', left: 16, right: 16, flexDirection: 'row', justifyContent: 'space-between' },
+  topRight: { flexDirection: 'row', gap: 8 },
+  iconButton: {
+    width: 40,
+    height: 40,
+    borderRadius: 20,
+    backgroundColor: colors.white,
+    alignItems: 'center',
+    justifyContent: 'center',
+    ...shadow,
+  },
+  errorBanner: {
+    position: 'absolute',
+    left: 16,
+    right: 16,
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: 8,
+    paddingHorizontal: 14,
+    paddingVertical: 10,
+    borderRadius: radius.md,
+    backgroundColor: colors.white,
+    ...shadow,
+  },
+  errorBannerText: { flex: 1, fontSize: 13, color: colors.textSub },
+  errorBannerAction: { fontSize: 14, fontWeight: '700', color: colors.primary },
   pill: {
     flexDirection: 'row',
     alignItems: 'center',
