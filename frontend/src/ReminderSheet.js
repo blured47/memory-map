@@ -1,3 +1,4 @@
+import Ionicons from '@expo/vector-icons/Ionicons';
 import { FlatList, Modal, Pressable, RefreshControl, StyleSheet, Text, View } from 'react-native';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import { colors } from './theme';
@@ -12,28 +13,45 @@ function severityColor(ratio) {
   return colors.caution;
 }
 
-function ReminderItem({ person }) {
-  const color = severityColor(person.overdue_ratio);
+function ReminderItem({ person, onPress }) {
+  const ratio = person.overdue_ratio ?? 0;
+  const color = severityColor(ratio);
   return (
-    <View style={styles.item}>
+    <Pressable
+      style={({ pressed }) => [styles.item, pressed && styles.pressed]}
+      onPress={onPress}
+      accessibilityRole="button"
+      accessibilityHint="친구 화면을 엽니다"
+    >
       <View style={styles.itemBody}>
         <Text style={styles.name}>
           {person.name}
           {person.relation ? <Text style={styles.relation}>  {person.relation}</Text> : null}
         </Text>
         <Text style={styles.detail}>
-          마지막 만남 {person.days_since_last_met}일 전 · 평소 {person.usual_cycle_days}일마다
+          마지막 만남 {person.days_since_last_met ?? 0}일 전 · 평소 {person.usual_cycle_days}일마다
           ({CYCLE_SOURCE_LABEL[person.cycle_source] ?? '알 수 없음'})
         </Text>
       </View>
       <View style={[styles.ratioBadge, { backgroundColor: color }]}>
-        <Text style={styles.ratioText}>{person.overdue_ratio.toFixed(1)}배</Text>
+        <Text style={styles.ratioText}>{ratio.toFixed(1)}배</Text>
       </View>
-    </View>
+      <Ionicons name="chevron-forward" size={18} color={colors.textDisabled} style={styles.chevron} />
+    </Pressable>
   );
 }
 
-export default function ReminderSheet({ visible, onClose, reminders, loading, error, ratio, onChangeRatio, onRefresh }) {
+export default function ReminderSheet({
+  visible,
+  onClose,
+  reminders,
+  loading,
+  error,
+  ratio,
+  onChangeRatio,
+  onRefresh,
+  onOpenPerson,
+}) {
   const insets = useSafeAreaInsets();
 
   return (
@@ -71,7 +89,7 @@ export default function ReminderSheet({ visible, onClose, reminders, loading, er
           <FlatList
             data={reminders}
             keyExtractor={(p) => String(p.id)}
-            renderItem={({ item }) => <ReminderItem person={item} />}
+            renderItem={({ item }) => <ReminderItem person={item} onPress={() => onOpenPerson?.(item.id)} />}
             refreshControl={<RefreshControl refreshing={loading} onRefresh={onRefresh} />}
             ListEmptyComponent={
               loading ? null : (
@@ -106,6 +124,8 @@ const styles = StyleSheet.create({
   detail: { fontSize: 13, color: colors.textSub, marginTop: 4 },
   ratioBadge: { paddingHorizontal: 10, paddingVertical: 5, borderRadius: 8 },
   ratioText: { color: colors.white, fontSize: 13, fontWeight: '700' },
+  chevron: { marginLeft: 6 },
+  pressed: { opacity: 0.6 },
   empty: { alignItems: 'center', paddingVertical: 32 },
   emptyText: { fontSize: 15, color: colors.textTertiary },
   errorText: { fontSize: 14, color: colors.danger, textAlign: 'center' },

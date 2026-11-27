@@ -17,7 +17,10 @@ export function formatDate(value) {
 
 // "2026-10-20T18:30:00" 또는 "2026-10-20" → Date (기기 현지 시각)
 export function parseLocalIso(value) {
-  const [year, month, day, hour = 0, minute = 0] = (value.match(/\d+/g) ?? []).map(Number);
+  if (typeof value !== 'string' || !value.trim()) return new Date();
+  const parts = value.match(/\d+/g)?.map(Number);
+  if (!parts || parts.length < 3) return new Date();
+  const [year, month, day, hour = 0, minute = 0] = parts;
   return new Date(year, month - 1, day, hour, minute);
 }
 
@@ -39,7 +42,9 @@ export function toDateValue(d) {
 // 생일("2000-05-12")까지 남은 날 수. 오늘이 생일이면 0.
 // 2월 29일생은 평년에 3월 1일로 계산된다
 export function daysUntilBirthday(birthday) {
+  if (!birthday) return null;
   const born = parseLocalIso(birthday);
+  if (Number.isNaN(born.getTime())) return null;
   const now = new Date();
   const today = new Date(now.getFullYear(), now.getMonth(), now.getDate());
   let next = new Date(today.getFullYear(), born.getMonth(), born.getDate());

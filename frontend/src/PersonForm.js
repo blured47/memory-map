@@ -7,6 +7,7 @@ import { colors } from './theme';
 
 // 생일을 처음 고를 때 달력이 열리는 날짜. 오늘부터 시작하면 태어난 해까지 한참 넘겨야 한다
 const DEFAULT_BIRTHDAY = '2000-01-01';
+const MAX_CYCLE_DAYS = 3650; // 10년
 
 // 사람 등록·수정 폼. person 이 있으면 그 사람을 수정한다.
 // onSubmit(body) 가 끝나면 저장된 것으로 본다 (실패하면 throw)
@@ -30,11 +31,12 @@ export default function PersonForm({ person, persons, onSubmit }) {
   const submit = async () => {
     setSubmitting(true);
     try {
-      const days = parseInt(cycleDays, 10);
+      const trimmedCycle = cycleDays.trim();
+      const days = trimmedCycle ? parseInt(trimmedCycle, 10) : 30;
       await onSubmit({
         name: name.trim(),
         relation: relation.trim() || null,
-        contact_cycle_days: days >= 1 ? days : 30,
+        contact_cycle_days: days,
         birthday,
         note: note.trim() || null,
       });
@@ -49,6 +51,13 @@ export default function PersonForm({ person, persons, onSubmit }) {
     const trimmedName = name.trim();
     if (!trimmedName) {
       return Alert.alert('입력 확인', '이름을 입력해 주세요.');
+    }
+    const trimmedCycle = cycleDays.trim();
+    if (trimmedCycle) {
+      const days = Number(trimmedCycle);
+      if (!/^\d+$/.test(trimmedCycle) || days < 1 || days > MAX_CYCLE_DAYS) {
+        return Alert.alert('입력 확인', `연락 주기는 1일부터 ${MAX_CYCLE_DAYS}일 사이의 숫자로 입력해 주세요.`);
+      }
     }
 
     // 동명이인 검사 (수정 중인 본인은 제외)
@@ -80,23 +89,31 @@ export default function PersonForm({ person, persons, onSubmit }) {
   return (
     <View style={styles.box}>
       <Text style={styles.title}>{person ? `${person.name} 님 정보 수정` : '새로운 친구 등록'}</Text>
-      <TextInput style={styles.input} placeholder="이름 (필수)" value={name} onChangeText={setName} />
+      <TextInput style={styles.input} placeholder="이름 (필수)" value={name} onChangeText={setName} maxLength={50} />
       <TextInput
         style={styles.input}
         placeholder="관계 (예: 대학 동기, 회사, 친구)"
         value={relation}
         onChangeText={setRelation}
+        maxLength={50}
       />
 
       {existingRelations.length > 0 && (
         <View style={styles.tagWrap}>
           <Text style={styles.tagLabel}>추천 태그:</Text>
           <ScrollView horizontal showsHorizontalScrollIndicator={false} keyboardShouldPersistTaps="handled">
-            {existingRelations.map((rel) => (
-              <Pressable key={rel} style={styles.tagChip} onPress={() => setRelation(rel)}>
-                <Text style={styles.tagChipText}>{rel}</Text>
-              </Pressable>
-            ))}
+            {existingRelations.map((rel) => {
+              const active = relation.trim() === rel;
+              return (
+                <Pressable
+                  key={rel}
+                  style={[styles.tagChip, active && styles.tagChipActive]}
+                  onPress={() => setRelation(active ? '' : rel)}
+                >
+                  <Text style={[styles.tagChipText, active && styles.tagChipTextActive]}>{rel}</Text>
+                </Pressable>
+              );
+            })}
           </ScrollView>
         </View>
       )}
@@ -109,6 +126,7 @@ export default function PersonForm({ person, persons, onSubmit }) {
           keyboardType="number-pad"
           value={cycleDays}
           onChangeText={setCycleDays}
+          maxLength={4}
         />
         <Text style={styles.cycleUnit}>일마다</Text>
       </View>
@@ -168,7 +186,9 @@ const styles = StyleSheet.create({
   tagWrap: { marginBottom: 8 },
   tagLabel: { fontSize: 13, color: colors.textTertiary, marginBottom: 6 },
   tagChip: { backgroundColor: colors.primaryBg, paddingHorizontal: 12, paddingVertical: 6, borderRadius: 14, marginRight: 6 },
+  tagChipActive: { backgroundColor: colors.primary },
   tagChipText: { fontSize: 13, color: colors.primary, fontWeight: '600' },
+  tagChipTextActive: { color: colors.white },
   cycleRow: { flexDirection: 'row', alignItems: 'center', marginBottom: 12 },
   cycleLabel: { fontSize: 14, color: colors.textSub, marginRight: 8 },
   cycleInput: { width: 64, marginBottom: 0, textAlign: 'center' },

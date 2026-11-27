@@ -3,6 +3,9 @@
     "name": "Memory Map",
     "slug": "memory-app",
     "version": "1.0.0",
+    "icon": "./assets/icon.png",
+    "description": "사진과 메모로 만남을 기록하고 지도 위에서 사람별 기억을 정리하는 앱",
+    "primaryColor": "#3182F6",
     "orientation": "portrait",
     "userInterfaceStyle": "light",
     "plugins": [
@@ -17,7 +20,7 @@
       [
         "expo-image-picker",
         {
-          "photosPermission": "만남을 기록할 사진을 고르기 위해 사진 보관함에 접근합니다.",
+          "photosPermission": "만남을 기록할 사진을 고르고, 사진에 저장된 촬영 위치와 시각을 읽기 위해 사진 보관함에 접근합니다.",
           "cameraPermission": false,
           "microphonePermission": false
         }
@@ -26,21 +29,30 @@
       [
         "expo-location",
         {
-          "locationWhenInUsePermission": "지도에서 내 위치를 보여주기 위해 현재 위치를 사용합니다."
+          "locationWhenInUsePermission": "지도에서 내 위치를 보여주기 위해 현재 위치를 사용합니다.",
+          "locationAlwaysAndWhenInUsePermission": false,
+          "locationAlwaysPermission": false,
+          "locationFullAccuracyPermission": "지도에서 내 위치를 정확하게 보여주기 위해 정확한 위치를 사용합니다.",
+          "motionUsagePermission": false,
+          "isIosBackgroundLocationEnabled": false,
+          "isAndroidBackgroundLocationEnabled": false
         }
       ],
       "expo-font",
       [
         "expo-media-library",
         {
-          "photosPermission": "사진에 저장된 촬영 위치와 시각을 읽기 위해 사진 보관함에 접근합니다.",
+          "photosPermission": "만남을 기록할 사진을 고르고, 사진에 저장된 촬영 위치와 시각을 읽기 위해 사진 보관함에 접근합니다.",
           "savePhotosPermission": false,
           "isAccessMediaLocationEnabled": true
         }
-      ]
+      ],
+      "expo-asset",
+      "expo-status-bar"
     ],
     "ios": {
       "bundleIdentifier": "io.github.blured47.memorymap",
+      "buildNumber": "1",
       "supportsTablet": false,
       "config": {
         "usesNonExemptEncryption": false
@@ -67,7 +79,8 @@
       }
     },
     "android": {
-      "package": "com.example.memorymap"
+      "package": "io.github.blured47.memorymap",
+      "versionCode": 1
     }
   }
 }

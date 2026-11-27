@@ -3,11 +3,13 @@ import { Pressable, ScrollView, StyleSheet, Text, View } from 'react-native';
 
 import PersonForm from './PersonForm';
 import PersonMemoCard from './PersonMemoCard';
+import { peopleLabel } from './people';
 import { daysUntilBirthday, formatDate, formatDateTime } from './datetime';
 import { colors } from './theme';
 
 function birthdayLabel(birthday) {
   const days = daysUntilBirthday(birthday);
+  if (days == null) return formatDate(birthday);
   return `${formatDate(birthday)} · ${days === 0 ? '오늘이 생일이에요' : `D-${days}`}`;
 }
 
@@ -34,11 +36,17 @@ export default function PersonDetail({ person, persons, meetings, onSave, onDele
       <View style={styles.stats}>
         <Stat label="만남" value={`${person.meeting_count || 0}회`} />
         <Stat label="마지막 만남" value={person.last_met_at ? formatDate(person.last_met_at) : '기록 없음'} />
-        <Stat label="연락 주기" value={`${person.contact_cycle_days ?? 30}일`} />
+        <Stat label="연락 주기" value={person.contact_cycle_days != null ? `${person.contact_cycle_days}일` : '미지정'} />
       </View>
 
-      {person.birthday || person.note ? (
+      {person.birthday || person.note || person.cycle_source === 'average' ? (
         <View style={styles.info}>
+          {person.cycle_source === 'average' && person.usual_cycle_days ? (
+            <View style={styles.infoRow}>
+              <Text style={styles.infoLabel}>평균</Text>
+              <Text style={styles.infoValue}>평소 {person.usual_cycle_days}일마다 만나는 편이에요</Text>
+            </View>
+          ) : null}
           {person.birthday ? (
             <View style={styles.infoRow}>
               <Text style={styles.infoLabel}>생일</Text>
@@ -65,7 +73,7 @@ export default function PersonDetail({ person, persons, meetings, onSave, onDele
 
       {editing && <PersonForm person={person} persons={persons} onSubmit={save} />}
 
-      <PersonMemoCard personId={person.id} />
+      <PersonMemoCard personId={person.id} meetingIds={meetings.map((m) => m.id)} />
 
       <Text style={styles.section}>함께한 만남 ({meetings.length})</Text>
       {meetings.length === 0 ? (
@@ -78,9 +86,7 @@ export default function PersonDetail({ person, persons, meetings, onSave, onDele
             </Text>
             <Text style={styles.meta} numberOfLines={1}>
               {formatDateTime(m.met_at)}
-              {m.people.length > 1
-                ? ` · 함께: ${m.people.filter((p) => p.id !== person.id).map((p) => p.name).join(', ')}`
-                : ''}
+              {peopleLabel(m, person.id) ? ` · 함께: ${peopleLabel(m, person.id)}` : ''}
             </Text>
             {m.memo ? (
               <Text style={styles.memo} numberOfLines={1}>
