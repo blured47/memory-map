@@ -35,3 +35,14 @@ export function toLocalIso(d) {
 export function toDateValue(d) {
   return `${d.getFullYear()}-${pad(d.getMonth() + 1)}-${pad(d.getDate())}`;
 }
+
+// 생일("2000-05-12")까지 남은 날 수. 오늘이 생일이면 0.
+// 2월 29일생은 평년에 3월 1일로 계산된다
+export function daysUntilBirthday(birthday) {
+  const born = parseLocalIso(birthday);
+  const now = new Date();
+  const today = new Date(now.getFullYear(), now.getMonth(), now.getDate());
+  let next = new Date(today.getFullYear(), born.getMonth(), born.getDate());
+  if (next < today) next = new Date(today.getFullYear() + 1, born.getMonth(), born.getDate());
+  return Math.round((next - today) / 86400000);
+}

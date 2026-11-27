@@ -109,3 +109,24 @@ export function uploadPhoto(asset) {
   form.append('file', new File(asset.uri));
   return request('/api/photos', { method: 'POST', body: form, timeout: UPLOAD_TIMEOUT_MS });
 }
+
+// AI 메모 분류는 내 컴퓨터의 Ollama 가 처리해 오래 걸린다 (생각 모드는 메모당 1분 안팎, 서버 제한 300초)
+const CLASSIFY_TIMEOUT_MS = 320000;
+
+// 만남 메모를 AI 로 분류해 사람별 카드에 저장 → 분류된 항목 목록
+export function classifyMeeting(meetingId) {
+  return request(`/api/meetings/${meetingId}/classify`, { method: 'POST', timeout: CLASSIFY_TIMEOUT_MS });
+}
+
+// 사람별 카드 → { interests, recommendations, questions, anniversaries }
+export function fetchPersonCard(personId) {
+  return request(`/api/persons/${personId}/card`);
+}
+
+export function updateMemoItem(itemId, item) {
+  return request(`/api/memo-items/${itemId}`, { method: 'PATCH', json: item });
+}
+
+export function deleteMemoItem(itemId) {
+  return request(`/api/memo-items/${itemId}`, { method: 'DELETE' });
+}

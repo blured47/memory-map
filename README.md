@@ -11,9 +11,9 @@
 |---|---|---|
 | 1 | 사람 등록, 만남 기록 CRUD | 완료 |
 | 2 | 카카오맵 연동 (장소·동네 검색, 기억지도, 내 위치) | 완료 |
-| 3 | 사진 EXIF 기반 자동 기록 (Pillow) | 완료, 실기기 확인 중 |
-| 4 | AI 메모 자동 분류 (Ollama), 맞춤형 연락 알림 | 연락 알림 완료, 메모 분류는 서버만 완료 |
-| 5 | 통합 테스트, 정확도 검증 | 예정 |
+| 3 | 사진 EXIF 기반 자동 기록 (Pillow) | 완료 (실기기 확인 필요) |
+| 4 | AI 메모 자동 분류 (Ollama), 맞춤형 연락 알림, 친구 생일·메모 | 완료 (앱에서 메모 정리 → 친구별 AI 카드) |
+| 5 | 통합 테스트, 정확도 검증 | 완료 (전체 흐름 통합 테스트, 메모 분류 F1 90%·생각 모드 93%) |
 
 ## 기술 스택
 
@@ -55,6 +55,24 @@ docker compose up --build
 ```bash
 cd backend && pytest
 ```
+
+`tests/test_integration.py` 는 사진 업로드 → 친구 등록 → 만남 기록 → AI 메모 분류 → 카드 수정 → 연락 알림 → 삭제·복구까지 앱의 전체 흐름을 한 번에 확인하는 통합 테스트입니다. AI(Ollama)는 가짜 응답으로 바꿔서 실행하므로 Ollama 없이도 돌아갑니다.
+
+### AI 메모 분류 정확도 측정
+
+Ollama를 켠 상태에서 예시 메모 30개(`backend/evaluation/memos.json`)를 분류해 미리 적어 둔 정답과 비교합니다. 결과는 `results/` 에 저장됩니다.
+
+```bash
+cd backend && python -m evaluation.evaluate            # 30개 전부
+cd backend && python -m evaluation.evaluate --limit 3  # 앞의 3개만 빠르게
+```
+
+| 모드 | F1 | 메모당 시간 | 결과 |
+|---|---|---|---|
+| 빠른 모드 (기본) | 90% | 약 11초 | [results/memo-accuracy-before.md](results/memo-accuracy-before.md) |
+| 생각 모드 (`OLLAMA_THINK=1`) | 93% | 약 50초 | [results/memo-accuracy-think.md](results/memo-accuracy-think.md) |
+
+빠른 모드에 규칙을 더 넣은 프롬프트는 F1 88%로 오히려 떨어져 쓰지 않습니다 ([results/memo-accuracy-after.md](results/memo-accuracy-after.md)).
 
 ## API
 
@@ -141,20 +159,27 @@ ollama pull qwen3:8b
 ollama serve
 ```
 
+서버 `.env` 에 `OLLAMA_THINK=1` 을 넣으면 생각 모드로 분류합니다. 정확도는 조금 오르지만 메모당 1분 가까이 걸립니다. 모델과 주소는 `OLLAMA_MODEL`, `OLLAMA_URL` 로 바꿀 수 있습니다.
+
+앱에서는 만남 상세의 **AI로 메모 정리** 버튼으로 분류하고, 결과는 친구 화면의 **AI 카드**에서 보고 고칩니다.
+
 ## 프로젝트 구조
 
 ```
 backend/
   app/
     main.py          FastAPI 앱
-    models.py        DB 모델 (Person, Meeting)
+    models.py        DB 모델 (Person, Meeting, MemoItem)
+    memo_ai.py       Ollama 메모 분류
     schemas.py       요청/응답 스키마
     routers/         API 라우터
-  tests/
+  tests/             단위 테스트, 통합 테스트(test_integration.py)
+  evaluation/        AI 메모 분류 정확도 측정
 frontend/            아이폰 앱 (React Native, Expo)
   App.js             지도 화면
   src/               화면별 시트, API, 테마(theme.js)
 data/                로컬 DB, 사진 (git 제외)
+results/             AI 메모 분류 정확도 측정 결과
 ```
 
 ## 협업 규칙
