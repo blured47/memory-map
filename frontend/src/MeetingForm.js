@@ -2,6 +2,7 @@ import { useEffect, useState } from 'react';
 import { ActivityIndicator, Image, Pressable, ScrollView, StyleSheet, Text, TextInput, View } from 'react-native';
 
 import { createMeeting, createPerson, fetchNearby, fetchPersons, searchPlaces, updateMeeting, uploadPhoto } from './api';
+import { needsClassify, startClassify } from './autoClassify';
 import DateTimeField from './DateTimeField';
 import { nowLocalIso, parseLocalIso, toLocalIso } from './datetime';
 import { readLibraryInfo } from './photoLibrary';
@@ -154,7 +155,9 @@ export default function MeetingForm({ meeting, asset, onSaved }) {
         photo_path: photo?.photo_path ?? null,
         person_ids: selectedIds,
       };
-      onSaved(meeting ? await updateMeeting(meeting.id, body) : await createMeeting(body));
+      const saved = meeting ? await updateMeeting(meeting.id, body) : await createMeeting(body);
+      if (needsClassify(meeting, saved)) startClassify(saved.id); // 기다리지 않고 뒤에서 분류
+      onSaved(saved);
     } catch (e) {
       setError(e.message);
     } finally {

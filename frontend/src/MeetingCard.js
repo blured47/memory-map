@@ -1,8 +1,9 @@
 import { useState } from 'react';
-import { ActivityIndicator, Alert, Image, KeyboardAvoidingView, Modal, Platform, Pressable, ScrollView, StyleSheet, Text, View } from 'react-native';
+import { Alert, Image, KeyboardAvoidingView, Modal, Platform, Pressable, ScrollView, StyleSheet, Text, View } from 'react-native';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
 
-import { classifyMeeting, deleteMeeting, photoUrl } from './api';
+import { deleteMeeting, photoUrl } from './api';
+import { startClassify, useClassifyStatus } from './autoClassify';
 import { formatDateTime } from './datetime';
 import MeetingForm from './MeetingForm';
 import { colors } from './theme';
@@ -12,26 +13,8 @@ import { colors } from './theme';
 export function MeetingDetail({ meeting, onClose, closeLabel = '닫기', onDeleted, onUpdated }) {
   const [deleting, setDeleting] = useState(false);
   const [editing, setEditing] = useState(false);
-  const [classifying, setClassifying] = useState(false);
+  const { running, failed } = useClassifyStatus();
   const uri = photoUrl(meeting.photo_path);
-
-  // 메모를 AI 로 분류해 함께한 사람들의 카드에 저장한다. 다시 누르면 이 만남의 분류 결과를 새로 만든다
-  const classify = async () => {
-    setClassifying(true);
-    try {
-      const items = await classifyMeeting(meeting.id);
-      Alert.alert(
-        'AI 정리 완료',
-        items.length > 0
-          ? `${items.length}개 항목을 친구 카드에 저장했어요. 친구 화면의 "AI 카드"에서 확인하고 고칠 수 있어요.`
-          : '메모에서 관심사·추천·물어볼 것·기념일을 찾지 못했어요.',
-      );
-    } catch (e) {
-      Alert.alert('AI 정리 실패', e.message);
-    } finally {
-      setClassifying(false);
-    }
-  };
 
   const confirmDelete = () => {
     Alert.alert('만남 삭제', '이 만남 기록을 삭제할까요? 되돌릴 수 없습니다.', [
@@ -86,10 +69,12 @@ export function MeetingDetail({ meeting, onClose, closeLabel = '닫기', onDelet
       <Text style={styles.meta}>{formatDateTime(meeting.met_at)}</Text>
       <Text style={styles.meta}>{meeting.people.map((p) => p.name).join(', ')}</Text>
       {meeting.memo ? <Text style={styles.memo}>{meeting.memo}</Text> : null}
-      {meeting.memo?.trim() ? (
-        <Pressable style={styles.classify} onPress={classify} disabled={classifying}>
-          {classifying ? <ActivityIndicator color={colors.primary} /> : null}
-          <Text style={styles.classifyText}>{classifying ? 'AI가 메모를 읽는 중… (1분 정도 걸려요)' : 'AI로 메모 정리'}</Text>
+      {/* 저장하면 메모는 자동으로 분류된다. 실패했을 때만 다시 시도할 수 있게 한다 */}
+      {running.has(meeting.id) ? (
+        <Text style={styles.classifyStatus}>AI가 메모 분류 중…</Text>
+      ) : failed.has(meeting.id) ? (
+        <Pressable onPress={() => startClassify(meeting.id)} hitSlop={8}>
+          <Text style={styles.classifyFailed}>메모 분류 실패 · 다시 시도</Text>
         </Pressable>
       ) : null}
       <View style={styles.actions}>
@@ -132,8 +117,8 @@ const styles = StyleSheet.create({
   close: { fontSize: 15, fontWeight: '600', color: colors.textTertiary },
   meta: { fontSize: 14, color: colors.textSub, marginTop: 4 },
   memo: { fontSize: 16, color: colors.text, marginTop: 16, lineHeight: 24 },
-  classify: { flexDirection: 'row', justifyContent: 'center', gap: 8, marginTop: 16, paddingVertical: 13, borderRadius: 14, borderWidth: 1, borderColor: colors.primaryDisabled, alignItems: 'center' },
-  classifyText: { fontSize: 15, fontWeight: '600', color: colors.primary },
+  classifyStatus: { fontSize: 13, color: colors.textTertiary, opacity: 0.7, marginTop: 10 },
+  classifyFailed: { fontSize: 13, color: colors.danger, marginTop: 10 },
   actions: { flexDirection: 'row', gap: 8, marginTop: 24 },
   edit: { flex: 1, paddingVertical: 15, borderRadius: 14, backgroundColor: colors.primaryBg, alignItems: 'center' },
   editText: { fontSize: 15, fontWeight: '600', color: colors.primary },

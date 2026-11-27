@@ -13,6 +13,7 @@ import PersonManagerSheet from './src/PersonManagerSheet';
 import PhotoRecordSheet from './src/PhotoRecordSheet';
 import ReminderSheet from './src/ReminderSheet';
 import { fetchMeetings, fetchReminders, photoUrl } from './src/api';
+import { useClassifyStatus } from './src/autoClassify';
 import { colors, radius, shadow } from './src/theme';
 
 const DEFAULT_RATIO = 1.5; // 백엔드 기본값과 같게 맞춤
@@ -43,6 +44,7 @@ function MemoryMap() {
   const [locating, setLocating] = useState(false);
 
   const latestRequest = useRef(0);
+  const classify = useClassifyStatus(); // 저장 후 뒤에서 하는 메모 분류 상태
 
   const load = useCallback(async () => {
     const requestId = ++latestRequest.current;
@@ -188,6 +190,13 @@ function MemoryMap() {
             <Ionicons name="locate" size={22} color={colors.primary} />
           )}
         </Pressable>
+
+        {classify.running.size > 0 && (
+          <View style={styles.classifyPill} pointerEvents="none">
+            <ActivityIndicator size="small" color={colors.white} />
+            <Text style={styles.classifyText}>AI가 메모 분류 중…</Text>
+          </View>
+        )}
       </View>
 
       <View style={[styles.panel, { paddingBottom: insets.bottom + 12 }]}>
@@ -274,6 +283,19 @@ const styles = StyleSheet.create({
     justifyContent: 'center',
     ...shadow,
   },
+  classifyPill: {
+    position: 'absolute',
+    bottom: 26,
+    alignSelf: 'center',
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: 6,
+    paddingHorizontal: 12,
+    paddingVertical: 7,
+    borderRadius: radius.pill,
+    backgroundColor: 'rgba(0,0,0,0.45)',
+  },
+  classifyText: { fontSize: 13, color: colors.white },
   panel: {
     backgroundColor: colors.white,
     paddingHorizontal: 20,
